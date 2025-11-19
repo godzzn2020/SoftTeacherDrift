@@ -1,0 +1,7 @@
+{
+  "name": "INSECTS_gradual_imbalanced",
+  "path": "INSECTS/INSECTS_gradual_imbalanced.csv",
+  "indexing": "0-based",
+  "drift_type": "gradual",
+  "positions": [58158]
+}

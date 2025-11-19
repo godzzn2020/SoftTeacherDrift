@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
+import os
+import time
+
 import numpy as np
 import pandas as pd
 import torch
@@ -24,22 +27,26 @@ class TrainingConfig:
     n_steps: int
     device: str = "cpu"
     log_path: Optional[str] = None
+    dataset_type: str = "unknown"
+    dataset_name: str = "unknown"
+    model_variant: str = "ts_drift_adapt"
+    seed: int = 0
 
 
 class FeatureVectorizer:
     """将 dict 或数组样本转为统一向量。"""
 
-    def __init__(self, input_dim: int) -> None:
+    def __init__(self, input_dim: int, feature_order: Optional[Sequence[str]] = None) -> None:
         self.input_dim = input_dim
-        self.feature_order: Optional[List[str]] = None
+        self.feature_order: Optional[List[str]] = list(feature_order) if feature_order else None
 
     def transform(self, sample: Any) -> np.ndarray:
         if isinstance(sample, np.ndarray):
             return sample.astype(np.float32)
         if isinstance(sample, dict):
             if self.feature_order is None:
-                self.feature_order = list(sample.keys())
-            vec = np.array([float(sample[k]) for k in self.feature_order], dtype=np.float32)
+                self.feature_order = list(sorted(sample.keys()))
+            vec = np.array([float(sample.get(k, 0.0)) for k in self.feature_order], dtype=np.float32)
             if len(vec) != self.input_dim:
                 raise ValueError("特征维度与模型输入不一致")
             return vec
@@ -95,14 +102,16 @@ def run_training_loop(
     vectorizer: FeatureVectorizer,
     label_encoder: LabelEncoder,
     config: TrainingConfig,
-) -> Dict[str, Any]:
-    """运行在线训练，返回最终指标与日志。"""
+) -> pd.DataFrame:
+    """运行在线训练，返回逐批日志 DataFrame。"""
     device = torch.device(config.device)
     model.to(device)
     current_hparams = initial_hparams
+    kappa_metric = metrics.CohenKappa()
     logs: List[Dict[str, Any]] = []
-    for step, batch in enumerate(batch_iter):
-        if step >= config.n_steps:
+    seen_samples = 0
+    for step, batch in enumerate(batch_iter, start=1):
+        if step > config.n_steps:
             break
         scheduler_state.step = step
         (
@@ -111,6 +120,8 @@ def run_training_loop(
             x_unlabeled_raw,
             y_unlabeled_raw,
         ) = batch
+        batch_sample_count = len(x_labeled_raw) + len(x_unlabeled_raw)
+        seen_samples += batch_sample_count
         x_labeled_np = vectorizer.transform_many(x_labeled_raw)
         x_unlabeled_np = vectorizer.transform_many(x_unlabeled_raw)
         y_labeled_np = label_encoder.encode_many(y_labeled_raw) if y_labeled_raw else None
@@ -133,11 +144,14 @@ def run_training_loop(
 
         stats = _collect_statistics(losses, y_labeled_np, y_unlabeled_np)
         drift_flag, severity = drift_monitor.update(stats["signals"], step)
-        current_hparams = update_hparams(scheduler_state, current_hparams, drift_flag, severity)
+        current_hparams, regime = update_hparams(
+            scheduler_state, current_hparams, drift_flag, severity
+        )
         _set_optimizer_lr(optimizer, current_hparams.lr)
 
-        batch_metric = _update_metric(
+        acc_value, kappa_value = _update_metrics(
             metric,
+            kappa_metric,
             stats["student_probs_labeled"],
             y_labeled_np,
             stats["student_probs_unlabeled"],
@@ -146,24 +160,35 @@ def run_training_loop(
         logs.append(
             {
                 "step": step,
-                "accuracy": batch_metric,
-                "drift_flag": drift_flag,
-                "severity": severity,
+                "seen_samples": seen_samples,
+                "dataset_name": config.dataset_name,
+                "dataset_type": config.dataset_type,
+                "model_variant": config.model_variant,
+                "seed": config.seed,
+                "metric_accuracy": acc_value,
+                "metric_kappa": kappa_value,
+                "student_error_rate": stats["signals"]["error_rate"],
+                "teacher_entropy": stats["signals"]["teacher_entropy"],
+                "divergence_js": stats["signals"]["divergence"],
+                "drift_flag": int(drift_flag),
+                "drift_severity": severity,
+                "regime": regime,
                 "alpha": current_hparams.alpha,
                 "lr": current_hparams.lr,
                 "lambda_u": current_hparams.lambda_u,
                 "tau": current_hparams.tau,
-                "teacher_entropy": stats["signals"]["teacher_entropy"],
-                "divergence": stats["signals"]["divergence"],
-                "error_rate": stats["signals"]["error_rate"],
+                "timestamp": time.time(),
                 "supervised_loss": float(losses.supervised.detach().cpu().item()),
                 "unsupervised_loss": float(losses.unsupervised.detach().cpu().item()),
             }
         )
+    df = pd.DataFrame(logs)
     if config.log_path:
-        df = pd.DataFrame(logs)
+        log_dir = os.path.dirname(config.log_path)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
         df.to_csv(config.log_path, index=False)
-    return {"metric": metric.get(), "logs": logs}
+    return df
 
 
 def _to_tensor(arr: Optional[np.ndarray], device: torch.device) -> Optional[Tensor]:
@@ -207,26 +232,28 @@ def _collect_statistics(
     }
 
 
-def _update_metric(
+def _update_metrics(
     metric: metrics.base.Metric,
+    kappa_metric: metrics.base.Metric,
     student_probs_labeled: Optional[np.ndarray],
     y_labeled: Optional[np.ndarray],
     student_probs_unlabeled: Optional[np.ndarray],
     y_unlabeled: Optional[np.ndarray],
-) -> float:
-    """逐样本更新准确率。"""
+) -> Tuple[float, float]:
+    """逐样本更新准确率与 Kappa。"""
     if student_probs_labeled is not None and y_labeled is not None:
         preds = student_probs_labeled.argmax(axis=1)
         for y_true, y_pred in zip(y_labeled, preds):
             metric.update(y_true=y_true, y_pred=y_pred)
+            kappa_metric.update(y_true=y_true, y_pred=y_pred)
     if student_probs_unlabeled is not None and y_unlabeled is not None:
         preds_u = student_probs_unlabeled.argmax(axis=1)
         for y_true, y_pred in zip(y_unlabeled, preds_u):
             metric.update(y_true=y_true, y_pred=y_pred)
-    return metric.get()
+            kappa_metric.update(y_true=y_true, y_pred=y_pred)
+    return metric.get(), kappa_metric.get()
 
 
 def _set_optimizer_lr(optimizer: torch.optim.Optimizer, lr: float) -> None:
     for param_group in optimizer.param_groups:
         param_group["lr"] = lr
-

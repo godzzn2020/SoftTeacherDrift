@@ -1,0 +1,16 @@
+# 文档索引（INDEX）
+
+## 核心总览
+- [PROJECT_OVERVIEW](PROJECT_OVERVIEW.md) — 项目简介、代码结构、协作规则
+
+## 模块级文档
+- [数据流与合成生成](modules/data_streams.md) — `data/streams.py` 及相关工具
+- [教师–学生模型](modules/teacher_student.md) — `models/teacher_student.py`
+- [漂移信号与超参调度](modules/drift_and_scheduler.md) — `drift/*`, `scheduler/*`
+- [训练循环与日志](modules/training_loop.md) — `training/loop.py`, `run_experiment.py`
+- [Stage1 实验设置](modules/experiments_stage1.md) — `experiments/first_stage_experiments.py`
+- [漂移评估指标](modules/evaluation_metrics.md) — `evaluation/` 目录
+
+## 变更记录
+- [CHANGELOG](../changelog/CHANGELOG.md)
+

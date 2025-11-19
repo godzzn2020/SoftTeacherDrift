@@ -1,0 +1,405 @@
+{
+  "dataset_type": "sea",
+  "dataset_name": "sea_abrupt4",
+  "seed": 42,
+  "n_samples": 50000,
+  "n_features": 3,
+  "feature_names": [
+    "f0",
+    "f1",
+    "f2"
+  ],
+  "label_name": "y",
+  "drift_type": "abrupt",
+  "drifts": [
+    {
+      "id": 0,
+      "start": 1500,
+      "end": 1500,
+      "type": "abrupt"
+    },
+    {
+      "id": 1,
+      "start": 3000,
+      "end": 3000,
+      "type": "abrupt"
+    },
+    {
+      "id": 2,
+      "start": 4500,
+      "end": 4500,
+      "type": "abrupt"
+    },
+    {
+      "id": 3,
+      "start": 6000,
+      "end": 6000,
+      "type": "abrupt"
+    },
+    {
+      "id": 4,
+      "start": 7500,
+      "end": 7500,
+      "type": "abrupt"
+    },
+    {
+      "id": 5,
+      "start": 9000,
+      "end": 9000,
+      "type": "abrupt"
+    },
+    {
+      "id": 6,
+      "start": 10500,
+      "end": 10500,
+      "type": "abrupt"
+    },
+    {
+      "id": 7,
+      "start": 12000,
+      "end": 12000,
+      "type": "abrupt"
+    },
+    {
+      "id": 8,
+      "start": 13500,
+      "end": 13500,
+      "type": "abrupt"
+    },
+    {
+      "id": 9,
+      "start": 15000,
+      "end": 15000,
+      "type": "abrupt"
+    },
+    {
+      "id": 10,
+      "start": 16500,
+      "end": 16500,
+      "type": "abrupt"
+    },
+    {
+      "id": 11,
+      "start": 18000,
+      "end": 18000,
+      "type": "abrupt"
+    },
+    {
+      "id": 12,
+      "start": 19500,
+      "end": 19500,
+      "type": "abrupt"
+    },
+    {
+      "id": 13,
+      "start": 21000,
+      "end": 21000,
+      "type": "abrupt"
+    },
+    {
+      "id": 14,
+      "start": 22500,
+      "end": 22500,
+      "type": "abrupt"
+    },
+    {
+      "id": 15,
+      "start": 24000,
+      "end": 24000,
+      "type": "abrupt"
+    },
+    {
+      "id": 16,
+      "start": 25500,
+      "end": 25500,
+      "type": "abrupt"
+    },
+    {
+      "id": 17,
+      "start": 27000,
+      "end": 27000,
+      "type": "abrupt"
+    },
+    {
+      "id": 18,
+      "start": 28500,
+      "end": 28500,
+      "type": "abrupt"
+    },
+    {
+      "id": 19,
+      "start": 30000,
+      "end": 30000,
+      "type": "abrupt"
+    },
+    {
+      "id": 20,
+      "start": 31500,
+      "end": 31500,
+      "type": "abrupt"
+    },
+    {
+      "id": 21,
+      "start": 33000,
+      "end": 33000,
+      "type": "abrupt"
+    },
+    {
+      "id": 22,
+      "start": 34500,
+      "end": 34500,
+      "type": "abrupt"
+    },
+    {
+      "id": 23,
+      "start": 36000,
+      "end": 36000,
+      "type": "abrupt"
+    },
+    {
+      "id": 24,
+      "start": 37500,
+      "end": 37500,
+      "type": "abrupt"
+    },
+    {
+      "id": 25,
+      "start": 39000,
+      "end": 39000,
+      "type": "abrupt"
+    },
+    {
+      "id": 26,
+      "start": 40500,
+      "end": 40500,
+      "type": "abrupt"
+    },
+    {
+      "id": 27,
+      "start": 42000,
+      "end": 42000,
+      "type": "abrupt"
+    },
+    {
+      "id": 28,
+      "start": 43500,
+      "end": 43500,
+      "type": "abrupt"
+    },
+    {
+      "id": 29,
+      "start": 45000,
+      "end": 45000,
+      "type": "abrupt"
+    },
+    {
+      "id": 30,
+      "start": 46500,
+      "end": 46500,
+      "type": "abrupt"
+    },
+    {
+      "id": 31,
+      "start": 48000,
+      "end": 48000,
+      "type": "abrupt"
+    },
+    {
+      "id": 32,
+      "start": 49500,
+      "end": 49500,
+      "type": "abrupt"
+    }
+  ],
+  "concept_segments": [
+    {
+      "concept_id": 0,
+      "start": 0,
+      "end": 1499
+    },
+    {
+      "concept_id": 1,
+      "start": 1500,
+      "end": 2999
+    },
+    {
+      "concept_id": 2,
+      "start": 3000,
+      "end": 4499
+    },
+    {
+      "concept_id": 3,
+      "start": 4500,
+      "end": 5999
+    },
+    {
+      "concept_id": 4,
+      "start": 6000,
+      "end": 7499
+    },
+    {
+      "concept_id": 5,
+      "start": 7500,
+      "end": 8999
+    },
+    {
+      "concept_id": 6,
+      "start": 9000,
+      "end": 10499
+    },
+    {
+      "concept_id": 7,
+      "start": 10500,
+      "end": 11999
+    },
+    {
+      "concept_id": 8,
+      "start": 12000,
+      "end": 13499
+    },
+    {
+      "concept_id": 9,
+      "start": 13500,
+      "end": 14999
+    },
+    {
+      "concept_id": 10,
+      "start": 15000,
+      "end": 16499
+    },
+    {
+      "concept_id": 11,
+      "start": 16500,
+      "end": 17999
+    },
+    {
+      "concept_id": 12,
+      "start": 18000,
+      "end": 19499
+    },
+    {
+      "concept_id": 13,
+      "start": 19500,
+      "end": 20999
+    },
+    {
+      "concept_id": 14,
+      "start": 21000,
+      "end": 22499
+    },
+    {
+      "concept_id": 15,
+      "start": 22500,
+      "end": 23999
+    },
+    {
+      "concept_id": 16,
+      "start": 24000,
+      "end": 25499
+    },
+    {
+      "concept_id": 17,
+      "start": 25500,
+      "end": 26999
+    },
+    {
+      "concept_id": 18,
+      "start": 27000,
+      "end": 28499
+    },
+    {
+      "concept_id": 19,
+      "start": 28500,
+      "end": 29999
+    },
+    {
+      "concept_id": 20,
+      "start": 30000,
+      "end": 31499
+    },
+    {
+      "concept_id": 21,
+      "start": 31500,
+      "end": 32999
+    },
+    {
+      "concept_id": 22,
+      "start": 33000,
+      "end": 34499
+    },
+    {
+      "concept_id": 23,
+      "start": 34500,
+      "end": 35999
+    },
+    {
+      "concept_id": 24,
+      "start": 36000,
+      "end": 37499
+    },
+    {
+      "concept_id": 25,
+      "start": 37500,
+      "end": 38999
+    },
+    {
+      "concept_id": 26,
+      "start": 39000,
+      "end": 40499
+    },
+    {
+      "concept_id": 27,
+      "start": 40500,
+      "end": 41999
+    },
+    {
+      "concept_id": 28,
+      "start": 42000,
+      "end": 43499
+    },
+    {
+      "concept_id": 29,
+      "start": 43500,
+      "end": 44999
+    },
+    {
+      "concept_id": 30,
+      "start": 45000,
+      "end": 46499
+    },
+    {
+      "concept_id": 31,
+      "start": 46500,
+      "end": 47999
+    },
+    {
+      "concept_id": 32,
+      "start": 48000,
+      "end": 49499
+    },
+    {
+      "concept_id": 33,
+      "start": 49500,
+      "end": 49999
+    }
+  ],
+  "generator": {
+    "library": "river",
+    "class": "SEA",
+    "params": {
+      "concept_ids": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "concept_length": 1500,
+      "noise": 0.0
+    }
+  },
+  "classes": [
+    0,
+    1
+  ],
+  "n_classes": 2
+}

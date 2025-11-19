@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+from typing import Tuple
 
 
 @dataclass
@@ -35,8 +36,8 @@ def update_hparams(
     prev_hparams: HParams,
     drift_flag: bool,
     severity: float,
-) -> HParams:
-    """根据漂移信号更新超参数。"""
+) -> Tuple[HParams, str]:
+    """根据漂移信号更新超参数并返回策略名称。"""
     mild_threshold, severe_threshold = 0.05, 0.15
     if math.isnan(severity):
         severity = 0.0
@@ -59,7 +60,7 @@ def update_hparams(
         lr=_blend(prev_hparams.lr, target.lr, 0.5),
         lambda_u=_blend(prev_hparams.lambda_u, target.lambda_u, 0.5),
         tau=_blend(prev_hparams.tau, target.tau, 0.5),
-    )
+    ), regime
 
 
 def _regime_target(regime: str, base: HParams) -> HParams:

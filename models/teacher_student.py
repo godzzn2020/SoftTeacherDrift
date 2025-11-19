@@ -13,7 +13,7 @@ from scheduler.hparam_scheduler import HParams
 
 
 class MLP(nn.Module):
-    """简单的多层感知机。"""
+    """简单的多层感知机，支持 LayerNorm。"""
 
     def __init__(
         self,
@@ -21,6 +21,7 @@ class MLP(nn.Module):
         hidden_dims: Optional[list[int]] = None,
         num_classes: int = 2,
         dropout: float = 0.0,
+        use_layernorm: bool = True,
     ) -> None:
         super().__init__()
         hidden_dims = hidden_dims or [64, 64]
@@ -28,7 +29,8 @@ class MLP(nn.Module):
         prev_dim = input_dim
         for h in hidden_dims:
             layers.append(nn.Linear(prev_dim, h))
-            layers.append(nn.BatchNorm1d(h))
+            if use_layernorm:
+                layers.append(nn.LayerNorm(h))
             layers.append(nn.ReLU())
             if dropout > 0:
                 layers.append(nn.Dropout(dropout))
@@ -60,18 +62,21 @@ class TeacherStudentModel:
         hidden_dims: Optional[list[int]] = None,
         dropout: float = 0.0,
         device: Optional[torch.device] = None,
+        use_layernorm: bool = True,
     ) -> None:
         self.student = MLP(
             input_dim=input_dim,
             hidden_dims=hidden_dims,
             num_classes=num_classes,
             dropout=dropout,
+            use_layernorm=use_layernorm,
         )
         self.teacher = MLP(
             input_dim=input_dim,
             hidden_dims=hidden_dims,
             num_classes=num_classes,
             dropout=dropout,
+            use_layernorm=use_layernorm,
         )
         self.device = device or torch.device("cpu")
         self.to(self.device)
@@ -153,4 +158,3 @@ class TeacherStudentModel:
                 teacher_param.data.mul_(alpha).add_(
                     student_param.data * (1.0 - alpha)
                 )
-
