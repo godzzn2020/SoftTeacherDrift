@@ -1,0 +1,7 @@
+{
+  "name": "INSECTS_abrupt_balanced",
+  "path": "INSECTS/INSECTS_abrupt_balanced.csv",
+  "indexing": "0-based",
+  "drift_type": "abrupt",
+  "positions": [14351, 19499, 33239, 38681, 39509]
+}
