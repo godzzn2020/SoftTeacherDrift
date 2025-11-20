@@ -28,6 +28,3 @@
 
 2025-11-20  [assistant]  修改 summary：新增离线校准得出的 monitor presets，并在 Stage-1 CLI 暴露 `--monitor_preset`（none/error_ph_meta/divergence_ph_meta/error_divergence_ph_meta）  
 影响文件：drift/detectors.py, experiments/first_stage_experiments.py, run_experiment.py, docs/modules/experiments_stage1.md
-
-2025-11-20  [assistant]  修改 summary：整理可用测试脚本并约定维护规则，新建 `docs/modules/test_scripts.md`、在 INDEX/PROJECT_OVERVIEW 追加说明  
-影响文件：docs/modules/test_scripts.md, docs/INDEX.md, docs/PROJECT_OVERVIEW.md
