@@ -1,0 +1,39 @@
+<svg width="960" height="200" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="960" height="200" fill="#ffffff" stroke="#dddddd"/>
+<text x="480.0" y="25" text-anchor="middle" font-size="16">sea_abrupt4__ts_drift_adapt__seed1 Drift Timeline</text>
+<line x1="50" y1="100.0" x2="910" y2="100.0" stroke="#555555"/>
+<line x1="221.14" y1="60" x2="221.14" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="393.36" y1="60" x2="393.36" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="565.58" y1="60" x2="565.58" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="737.80" y1="60" x2="737.80" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="76.45" y1="60" x2="76.45" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="104.01" y1="60" x2="104.01" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="131.56" y1="60" x2="131.56" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="159.12" y1="60" x2="159.12" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="186.67" y1="60" x2="186.67" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="214.23" y1="60" x2="214.23" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="241.78" y1="60" x2="241.78" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="269.34" y1="60" x2="269.34" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="296.90" y1="60" x2="296.90" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="324.45" y1="60" x2="324.45" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="352.01" y1="60" x2="352.01" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="379.56" y1="60" x2="379.56" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="407.12" y1="60" x2="407.12" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="435.77" y1="60" x2="435.77" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="463.33" y1="60" x2="463.33" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="491.99" y1="60" x2="491.99" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="519.54" y1="60" x2="519.54" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="547.10" y1="60" x2="547.10" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="574.65" y1="60" x2="574.65" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="602.21" y1="60" x2="602.21" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="629.76" y1="60" x2="629.76" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="671.65" y1="60" x2="671.65" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="699.20" y1="60" x2="699.20" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="726.76" y1="60" x2="726.76" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="756.52" y1="60" x2="756.52" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="784.07" y1="60" x2="784.07" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="811.63" y1="60" x2="811.63" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="839.18" y1="60" x2="839.18" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="866.74" y1="60" x2="866.74" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="894.29" y1="60" x2="894.29" y2="180" stroke="#d62728" stroke-width="2"/>
+</svg>

@@ -19,6 +19,13 @@
   - 读取已有 `logs/{dataset}/{dataset}__{model}__seed{seed}.csv` 与对应 meta，离线重放多组 drift detector 组合。
   - 内置 `DetectorConfig` 网格（error/entropy/divergence × ADWIN/PageHinkley），输出 `results/offline_detector_grid.csv` 与 per-dataset Markdown Top-N。
   - CLI 支持 `--datasets`, `--seeds`, `--model_variant`, `--out_*`，以及 `--debug_sanity` 快速验证 detector 是否会触发，方便批量筛选稳定的漂移检测配置。
+- `experiments/summarize_online_results.py`：
+  - 汇总在线训练日志（`logs/`）并生成 `results/online_runs.csv`、`results/online_summary.csv`、`results/online_summary.md`。
+  - 自带轻量级 SVG 绘图，将每个数据集的 Accuracy 曲线输出到 `figures/online_accuracy/`，并在 `figures/online_detections/` 绘制检测时间线；同时按日志中的 `drift_flag` 计算在线 MDR/MTD/MTFA/MTR，方便与离线 detector 结果对照。
+- `experiments/parallel_stage1_launcher.py`：
+  - 基于 `_default_experiment_configs` 构建 (dataset × model × seed) 组合。
+  - 通过指定 `--gpus` 与 `--max_jobs_per_gpu`，并行启动多个 `run_experiment.py` 子进程（内部设置 `CUDA_VISIBLE_DEVICES`），可将 12 个 Stage-1 任务平均分摊到多张卡上。
+  - CLI 复用 Stage-1 常用参数（datasets/models/seeds/monitor_preset）并支持 `--python_bin`、`--sleep_interval` 等调度选项。
 - `run_experiment.py` 与 `experiments/first_stage_experiments.py` 现均支持 `--monitor_preset`：
   - `none`：禁用漂移检测，保持旧版 baseline 行为；
   - `error_ph_meta`：使用 offline sweep 得到的学生误差 + PageHinkley(`alpha=0.15, delta=0.005, threshold=0.2, min_instances=25`);
@@ -27,7 +34,7 @@
   - 这些 preset 直接映射到 `DriftMonitor` 内部的 detector 组合，可与 scheduler 联动，也可以设为 `none` 只记录原始信号。
 - 默认配置（可在 `_default_experiment_configs` 或脚本常量中查看）：
   - 合成流：段长、漂移位置、种子等已固定；
-  - 真实流：读取 `datasets/real/INSECTS_abrupt_balanced.csv` 并配套 meta（0-based positions）。
+  - 真实流：读取本地 `datasets/real/INSECTS_abrupt_balanced.csv`（`dataset_type=insects_real`），避免 river 在线下载 404，meta 信息仍来自配套 JSON（0-based positions）。
 
 ## 示例命令
 

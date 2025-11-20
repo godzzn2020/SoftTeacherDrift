@@ -1,0 +1,9 @@
+<svg width="960" height="200" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="960" height="200" fill="#ffffff" stroke="#dddddd"/>
+<text x="480.0" y="25" text-anchor="middle" font-size="16">sine_abrupt4__ts_drift_adapt__seed1 Drift Timeline</text>
+<line x1="50" y1="100.0" x2="910" y2="100.0" stroke="#555555"/>
+<line x1="221.14" y1="60" x2="221.14" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="393.36" y1="60" x2="393.36" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="565.58" y1="60" x2="565.58" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="737.80" y1="60" x2="737.80" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+</svg>

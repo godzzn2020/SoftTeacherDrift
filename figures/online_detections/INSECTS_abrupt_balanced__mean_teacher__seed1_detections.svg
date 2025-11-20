@@ -1,0 +1,18 @@
+<svg width="960" height="200" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="960" height="200" fill="#ffffff" stroke="#dddddd"/>
+<text x="480.0" y="25" text-anchor="middle" font-size="16">INSECTS_abrupt_balanced__mean_teacher__seed1 Drift Timeline</text>
+<line x1="50" y1="100.0" x2="910" y2="100.0" stroke="#555555"/>
+<line x1="280.51" y1="60" x2="280.51" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="364.69" y1="60" x2="364.69" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="589.37" y1="60" x2="589.37" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="678.37" y1="60" x2="678.37" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="691.91" y1="60" x2="691.91" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="150.47" y1="60" x2="150.47" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="255.13" y1="60" x2="255.13" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="359.78" y1="60" x2="359.78" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="464.44" y1="60" x2="464.44" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="569.10" y1="60" x2="569.10" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="673.75" y1="60" x2="673.75" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="778.41" y1="60" x2="778.41" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="883.07" y1="60" x2="883.07" y2="180" stroke="#d62728" stroke-width="2"/>
+</svg>

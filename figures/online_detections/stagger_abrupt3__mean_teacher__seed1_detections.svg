@@ -1,0 +1,7 @@
+<svg width="960" height="200" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="960" height="200" fill="#ffffff" stroke="#dddddd"/>
+<text x="480.0" y="25" text-anchor="middle" font-size="16">stagger_abrupt3__mean_teacher__seed1 Drift Timeline</text>
+<line x1="50" y1="100.0" x2="910" y2="100.0" stroke="#555555"/>
+<line x1="336.07" y1="60" x2="336.07" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="623.04" y1="60" x2="623.04" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+</svg>

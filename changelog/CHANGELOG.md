@@ -28,3 +28,18 @@
 
 2025-11-20  [assistant]  修改 summary：新增离线校准得出的 monitor presets，并在 Stage-1 CLI 暴露 `--monitor_preset`（none/error_ph_meta/divergence_ph_meta/error_divergence_ph_meta）  
 影响文件：drift/detectors.py, experiments/first_stage_experiments.py, run_experiment.py, docs/modules/experiments_stage1.md
+
+2025-11-20  [assistant]  修改 summary：整理可用测试脚本，新增 `docs/modules/test_scripts.md` 并在索引/总览中强调 CLI 维护规则  
+影响文件：docs/modules/test_scripts.md, docs/INDEX.md, docs/PROJECT_OVERVIEW.md
+
+2025-11-20  [assistant]  修改 summary：修复 Stage-1 脚本直接运行时的模块导入错误（添加项目根路径）  
+影响文件：experiments/first_stage_experiments.py
+
+2025-11-20  [assistant]  修改 summary：新增 `experiments/parallel_stage1_launcher.py`，支持多 GPU 并行调度 Stage-1 组合，并在文档中记录 CLI 参数  
+影响文件：experiments/parallel_stage1_launcher.py, docs/modules/test_scripts.md, docs/modules/experiments_stage1.md
+
+2025-11-20  [assistant]  修改 summary：Stage-1 默认 INSECTS 改为使用本地 CSV（`insects_real`），避免 river 下载 404  
+影响文件：experiments/first_stage_experiments.py, docs/modules/experiments_stage1.md
+
+2025-11-20  [assistant]  修改 summary：新增 `experiments/summarize_online_results.py`（生成在线 runs/summary/Markdown/Accuracy & Detection SVG，并计算在线 MDR/MTD/MTFA/MTR），并在相关文档补充 CLI  
+影响文件：experiments/summarize_online_results.py, docs/modules/test_scripts.md, docs/modules/experiments_stage1.md

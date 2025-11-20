@@ -7,6 +7,13 @@ import os
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional
 
+import sys
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 import pandas as pd
 import torch
 from river import metrics
@@ -239,8 +246,9 @@ def _default_experiment_configs(seed: int) -> List[ExperimentConfig]:
             seed=seed,
         ),
         ExperimentConfig(
-            dataset_type="insects_river",
-            dataset_name="insects_abrupt_balanced",
+            dataset_type="insects_real",
+            dataset_name="INSECTS_abrupt_balanced",
+            csv_path="datasets/real/INSECTS_abrupt_balanced.csv",
             n_steps=1200,
             batch_size=256,
             labeled_ratio=0.05,
