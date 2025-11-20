@@ -162,6 +162,12 @@ def ensure_dir(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
+def _format_tick(value: float) -> str:
+    if abs(value) >= 1000:
+        return f"{value/1000:.0f}k"
+    return f"{value:.0f}"
+
+
 def render_accuracy_plot(
     dataset: str,
     series: Dict[str, pd.DataFrame],
@@ -206,7 +212,32 @@ def render_accuracy_plot(
         f'<line x1="{margin}" y1="{margin}" x2="{margin}" y2="{height - margin}" stroke="#444444"/>',
         f'<line x1="{margin}" y1="{height - margin}" x2="{width - margin}" y2="{height - margin}" stroke="#444444"/>',
         f'<text x="{width/2:.1f}" y="30" text-anchor="middle" font-size="18">{dataset} Accuracy</text>',
+        f'<text x="{width/2:.1f}" y="{height - 10}" text-anchor="middle" font-size="12" fill="#333333">sample_idx</text>',
+        f'<text x="20" y="{height/2:.1f}" transform="rotate(-90,20,{height/2:.1f})" text-anchor="middle" font-size="12" fill="#333333">metric_accuracy</text>',
     ]
+    # X ticks
+    tick_count = 5
+    if tick_count > 0:
+        for i in range(tick_count + 1):
+            x_val = min_x + (max_x - min_x) * i / tick_count
+            px = scale_x(x_val)
+            lines.append(f'<line x1="{px:.2f}" y1="{height - margin}" x2="{px:.2f}" y2="{height - margin + 5}" stroke="#666666"/>')
+            lines.append(
+                f'<text x="{px:.2f}" y="{height - margin + 18}" text-anchor="middle" font-size="11" fill="#444444">{_format_tick(x_val)}</text>'
+            )
+        for i in range(tick_count + 1):
+            y_val = min_y + (max_y - min_y) * i / tick_count
+            py = scale_y(y_val)
+            lines.append(f'<line x1="{margin - 5}" y1="{py:.2f}" x2="{margin}" y2="{py:.2f}" stroke="#666666"/>')
+            lines.append(
+                f'<text x="{margin - 8}" y="{py + 4:.2f}" text-anchor="end" font-size="11" fill="#444444">{y_val:.2f}</text>'
+            )
+    legend_y = margin - 25
+    legend_x = width - margin - 120
+    lines.append(f'<rect x="{legend_x}" y="{legend_y - 15}" width="120" height="{25 + 20 * len(valid_series)}" fill="#ffffff" stroke="#cccccc"/>')
+    lines.append(
+        f'<text x="{legend_x + 60}" y="{legend_y - 2}" text-anchor="middle" font-size="12" fill="#333333">legend</text>'
+    )
     for idx, (model, points) in enumerate(valid_series.items()):
         color = colors[idx % len(colors)]
         path_cmds = []
@@ -215,9 +246,9 @@ def render_accuracy_plot(
             cmd = "M" if i == 0 else "L"
             path_cmds.append(f"{cmd}{px:.2f},{py:.2f}")
         lines.append(f'<path d="{" ".join(path_cmds)}" fill="none" stroke="{color}" stroke-width="2"/>')
-        lines.append(
-            f'<text x="{width - margin + 5}" y="{margin + 20 * idx}" font-size="12" fill="{color}">{model}</text>'
-        )
+        ly = legend_y + 15 + 20 * idx
+        lines.append(f'<line x1="{legend_x + 10}" y1="{ly - 4}" x2="{legend_x + 30}" y2="{ly - 4}" stroke="{color}" stroke-width="2"/>')
+        lines.append(f'<text x="{legend_x + 35}" y="{ly}" font-size="12" fill="{color}">{model}</text>')
     lines.append("</svg>")
     svg_path = fig_dir / f"{dataset}_accuracy.svg"
     svg_path.write_text("\n".join(lines), encoding="utf-8")
@@ -251,8 +282,24 @@ def render_detection_plot(
         f'<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">',
         f'<rect x="0" y="0" width="{width}" height="{height}" fill="#ffffff" stroke="#dddddd"/>',
         f'<text x="{width/2:.1f}" y="25" text-anchor="middle" font-size="16">{dataset} Drift Timeline</text>',
+        f'<text x="{width/2:.1f}" y="{height - 5}" text-anchor="middle" font-size="12" fill="#333333">sample_idx</text>',
         f'<line x1="{margin}" y1="{height/2}" x2="{width - margin}" y2="{height/2}" stroke="#555555"/>',
     ]
+    for i in range(5):
+        x_val = min_x + (max_x - min_x) * i / 4
+        px = scale_x(x_val)
+        lines.append(f'<line x1="{px:.2f}" y1="{height/2 - 5}" x2="{px:.2f}" y2="{height/2 + 5}" stroke="#888888"/>')
+        lines.append(
+            f'<text x="{px:.2f}" y="{height/2 + 18}" text-anchor="middle" font-size="11" fill="#444444">{_format_tick(x_val)}</text>'
+        )
+    legend_x = width - margin - 140
+    legend_y = 35
+    lines.append(f'<rect x="{legend_x}" y="{legend_y}" width="140" height="50" fill="#ffffff" stroke="#cccccc"/>')
+    lines.append(f'<text x="{legend_x + 70}" y="{legend_y + 15}" text-anchor="middle" font-size="12" fill="#333333">legend</text>')
+    lines.append(f'<line x1="{legend_x + 15}" y1="{legend_y + 30}" x2="{legend_x + 30}" y2="{legend_y + 30}" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>')
+    lines.append(f'<text x="{legend_x + 35}" y="{legend_y + 34}" font-size="12" fill="#555555">ground truth</text>')
+    lines.append(f'<line x1="{legend_x + 15}" y1="{legend_y + 45}" x2="{legend_x + 30}" y2="{legend_y + 45}" stroke="#d62728" stroke-width="2"/>')
+    lines.append(f'<text x="{legend_x + 35}" y="{legend_y + 49}" font-size="12" fill="#d62728">detections</text>')
     for gt in gt_drifts:
         px = scale_x(gt)
         lines.append(f'<line x1="{px:.2f}" y1="60" x2="{px:.2f}" y2="{height - 20}" stroke="{colors["gt"]}" stroke-width="2" stroke-dasharray="4,4"/>')

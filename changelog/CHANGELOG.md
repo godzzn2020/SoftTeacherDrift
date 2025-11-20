@@ -41,7 +41,7 @@
 2025-11-20  [assistant]  修改 summary：Stage-1 默认 INSECTS 改为使用本地 CSV（`insects_real`），避免 river 下载 404  
 影响文件：experiments/first_stage_experiments.py, docs/modules/experiments_stage1.md
 
-2025-11-20  [assistant]  修改 summary：新增 `experiments/summarize_online_results.py`（生成在线 runs/summary/Markdown/Accuracy & Detection SVG，并计算在线 MDR/MTD/MTFA/MTR），并在相关文档补充 CLI  
+2025-11-20  [assistant]  修改 summary：新增 `experiments/summarize_online_results.py`（生成在线 runs/summary/Markdown/Accuracy & Detection SVG，并计算在线 MDR/MTD/MTFA/MTR），同时完善图表轴标签/图例，并在相关文档补充 CLI  
 影响文件：experiments/summarize_online_results.py, docs/modules/test_scripts.md, docs/modules/experiments_stage1.md
 
 2025-11-20  [assistant]  修改 summary：Stage-1 默认实验新增 `sine_abrupt4` 与 `stagger_abrupt3`，确保并行/批量脚本能覆盖离线调参的合成流  
