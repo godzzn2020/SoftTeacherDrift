@@ -1,0 +1,64 @@
+{
+  "dataset_type": "stagger",
+  "dataset_name": "stagger_abrupt3",
+  "seed": 1,
+  "n_samples": 60000,
+  "n_features": 3,
+  "feature_names": [
+    "f0",
+    "f1",
+    "f2"
+  ],
+  "label_name": "y",
+  "drift_type": "abrupt",
+  "drifts": [
+    {
+      "id": 0,
+      "start": 20000,
+      "end": 20000,
+      "type": "abrupt"
+    },
+    {
+      "id": 1,
+      "start": 40000,
+      "end": 40000,
+      "type": "abrupt"
+    }
+  ],
+  "concept_segments": [
+    {
+      "concept_id": 0,
+      "start": 0,
+      "end": 19999
+    },
+    {
+      "concept_id": 1,
+      "start": 20000,
+      "end": 39999
+    },
+    {
+      "concept_id": 2,
+      "start": 40000,
+      "end": 59999
+    }
+  ],
+  "generator": {
+    "library": "river",
+    "class": "STAGGER",
+    "params": {
+      "classification_functions": [
+        0,
+        1,
+        2,
+        0
+      ],
+      "segment_length": 20000,
+      "seed": 1
+    }
+  },
+  "classes": [
+    0,
+    1
+  ],
+  "n_classes": 2
+}

@@ -110,6 +110,7 @@ def run_training_loop(
     kappa_metric = metrics.CohenKappa()
     logs: List[Dict[str, Any]] = []
     seen_samples = 0
+    sample_idx = -1
     for step, batch in enumerate(batch_iter, start=1):
         if step > config.n_steps:
             break
@@ -122,6 +123,7 @@ def run_training_loop(
         ) = batch
         batch_sample_count = len(x_labeled_raw) + len(x_unlabeled_raw)
         seen_samples += batch_sample_count
+        sample_idx += batch_sample_count
         x_labeled_np = vectorizer.transform_many(x_labeled_raw)
         x_unlabeled_np = vectorizer.transform_many(x_unlabeled_raw)
         y_labeled_np = label_encoder.encode_many(y_labeled_raw) if y_labeled_raw else None
@@ -161,6 +163,7 @@ def run_training_loop(
             {
                 "step": step,
                 "seen_samples": seen_samples,
+                "sample_idx": sample_idx,
                 "dataset_name": config.dataset_name,
                 "dataset_type": config.dataset_type,
                 "model_variant": config.model_variant,

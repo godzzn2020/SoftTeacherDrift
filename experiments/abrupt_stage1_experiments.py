@@ -30,7 +30,7 @@ REAL_DATASET_PARAMS = {
     "INSECTS_abrupt_balanced": {
         "dataset_type": "insects_real",
         "dataset_name": "INSECTS_abrupt_balanced",
-        "csv_path": "datasets/real/INSECTS/INSECTS_abrupt_balanced.csv",
+        "csv_path": "datasets/real/INSECTS_abrupt_balanced.csv",
         "label_col": None,
     }
 }

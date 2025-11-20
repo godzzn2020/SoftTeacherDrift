@@ -8,3 +8,8 @@
 - 为核心模块添加 `docs/modules/*.md` 草稿，说明接口与 TODO。
 - 新建 `changelog/CHANGELOG.md`，约定未来重大更新都在此记录。
 
+## 2025-XX-XX  Abrupt Stage1 扩展
+
+- `data/streams.py` 新增 Sine/STAGGER 合成流生成、默认批量生成 CLI，以及 INSECTS_real 支持与 sample 元信息。
+- `training/loop.py` 日志增加 0-based `sample_idx`，统一漂移检测时间戳。
+- 新增 `experiments/abrupt_stage1_experiments.py` 与 `experiments/analyze_abrupt_results.py`，提供突变漂移批量运行、汇总与绘图；相应文档与指标说明同步更新。

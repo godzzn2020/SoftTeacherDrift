@@ -18,7 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset_type",
         required=True,
-        choices=["sea", "hyperplane", "uspds_csv", "insects_river", "sea_saved", "hyperplane_saved", "synth_saved"],
+        choices=["sea", "hyperplane", "uspds_csv", "insects_river", "insects_real", "sea_saved", "hyperplane_saved", "synth_saved"],
         help="数据集类型",
     )
     parser.add_argument("--dataset_name", required=True, help="数据集名称/变体")

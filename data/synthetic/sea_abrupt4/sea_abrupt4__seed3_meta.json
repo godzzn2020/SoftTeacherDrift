@@ -1,0 +1,87 @@
+{
+  "dataset_type": "sea",
+  "dataset_name": "sea_abrupt4",
+  "seed": 3,
+  "n_samples": 50000,
+  "n_features": 3,
+  "feature_names": [
+    "f0",
+    "f1",
+    "f2"
+  ],
+  "label_name": "y",
+  "drift_type": "abrupt",
+  "drifts": [
+    {
+      "id": 0,
+      "start": 10000,
+      "end": 10000,
+      "type": "abrupt"
+    },
+    {
+      "id": 1,
+      "start": 20000,
+      "end": 20000,
+      "type": "abrupt"
+    },
+    {
+      "id": 2,
+      "start": 30000,
+      "end": 30000,
+      "type": "abrupt"
+    },
+    {
+      "id": 3,
+      "start": 40000,
+      "end": 40000,
+      "type": "abrupt"
+    }
+  ],
+  "concept_segments": [
+    {
+      "concept_id": 0,
+      "start": 0,
+      "end": 9999
+    },
+    {
+      "concept_id": 1,
+      "start": 10000,
+      "end": 19999
+    },
+    {
+      "concept_id": 2,
+      "start": 20000,
+      "end": 29999
+    },
+    {
+      "concept_id": 3,
+      "start": 30000,
+      "end": 39999
+    },
+    {
+      "concept_id": 4,
+      "start": 40000,
+      "end": 49999
+    }
+  ],
+  "generator": {
+    "library": "river",
+    "class": "SEA",
+    "params": {
+      "concept_ids": [
+        0,
+        1,
+        2,
+        3,
+        0
+      ],
+      "concept_length": 10000,
+      "noise": 0.0
+    }
+  },
+  "classes": [
+    0,
+    1
+  ],
+  "n_classes": 2
+}

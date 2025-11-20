@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
+import argparse
 import json
 
 import numpy as np
@@ -15,7 +16,7 @@ from river.datasets import synth, Insects
 
 
 SEA_CONFIGS = {
-    "sea_abrupt4": {"concept_ids": [0, 1, 2, 3], "concept_length": 1500},
+    "sea_abrupt4": {"concept_ids": [0, 1, 2, 3, 0], "concept_length": 10000},
     "sea_reoccurring": {"concept_ids": [0, 1, 0, 2, 0, 3], "concept_length": 1000},
 }
 
@@ -35,6 +36,49 @@ HYPERPLANE_CONFIGS = {
         "sigma": 0.02,
         "noise_percentage": 0.02,
         "n_samples": 12_000,
+    },
+}
+
+SINE_DEFAULT = {
+    "sine_abrupt4": {
+        "classification_functions": [0, 1, 2, 3, 0],
+        "segment_length": 10000,
+        "balance_classes": False,
+        "has_noise": False,
+    }
+}
+
+STAGGER_DEFAULT = {
+    "stagger_abrupt3": {
+        "classification_functions": [0, 1, 2, 0],
+        "segment_length": 20000,
+        "balance_classes": False,
+    }
+}
+
+DEFAULT_ABRUPT_SYNTH_DATASETS = {
+    "sea_abrupt4": {
+        "dataset_type": "sea",
+        "n_samples": 50000,
+        "drift_cfg": {"concept_ids": [0, 1, 2, 3, 0], "concept_length": 10000, "drift_type": "abrupt"},
+    },
+    "sine_abrupt4": {
+        "dataset_type": "sine",
+        "n_samples": 50000,
+        "drift_cfg": {
+            "classification_functions": [0, 1, 2, 3, 0],
+            "segment_length": 10000,
+            "drift_type": "abrupt",
+        },
+    },
+    "stagger_abrupt3": {
+        "dataset_type": "stagger",
+        "n_samples": 60000,
+        "drift_cfg": {
+            "classification_functions": [0, 1, 2, 0],
+            "segment_length": 20000,
+            "drift_type": "abrupt",
+        },
     },
 }
 
@@ -69,12 +113,19 @@ def build_stream(
         return _build_sea_stream(dataset_name, seed=seed, **kwargs)
     if dataset_type == "hyperplane":
         return _build_hyperplane_stream(dataset_name, seed=seed, **kwargs)
+    if dataset_type == "sine":
+        return _build_sine_stream(dataset_name, seed=seed, **kwargs)
+    if dataset_type == "stagger":
+        return _build_stagger_stream(dataset_name, seed=seed, **kwargs)
     if dataset_type == "uspds_csv":
         if csv_path is None:
             raise ValueError("uspds_csv 数据集需要提供 csv_path")
         return _build_uspds_csv_stream(dataset_name, csv_path, label_col)
     if dataset_type == "insects_river":
         return _build_insects_stream(dataset_name, seed=seed)
+    if dataset_type == "insects_real":
+        csv = csv_path or f"datasets/real/{dataset_name}.csv"
+        return _build_uspds_csv_stream(dataset_name, csv, label_col)
     if dataset_type in {"sea_saved", "hyperplane_saved", "synth_saved"}:
         stream_info, _ = load_saved_synth_stream(
             dataset_name=dataset_name,
@@ -144,6 +195,77 @@ def _build_hyperplane_stream(dataset_name: str, seed: int, **kwargs: Any) -> Str
         n_features=n_features,
         n_classes=2,
         dataset_type="hyperplane",
+        dataset_name=dataset_name,
+        feature_names=feature_names,
+        classes=[0, 1],
+    )
+
+
+def _build_sine_stream(dataset_name: str, seed: int, **kwargs: Any) -> StreamInfo:
+    cfg = SINE_DEFAULT.get(dataset_name)
+    if cfg is None:
+        raise ValueError(f"未知的 Sine 配置: {dataset_name}")
+    functions = kwargs.get("classification_functions", cfg["classification_functions"])
+    segment_length = int(kwargs.get("segment_length", cfg["segment_length"]))
+    def iterator() -> Iterator[Tuple[Dict[str, float], int]]:
+        total = 0
+        concept_id = 0
+        while True:
+            if total >= kwargs.get("n_samples", segment_length * len(functions)):
+                break
+            length = min(segment_length, kwargs.get("n_samples", segment_length * len(functions)) - total)
+            dataset = synth.Sine(
+                classification_function=functions[concept_id % len(functions)],
+                seed=seed + concept_id * 31,
+                balance_classes=bool(kwargs.get("balance_classes", cfg["balance_classes"])),
+                has_noise=bool(kwargs.get("has_noise", cfg["has_noise"])),
+            )
+            for x, y in dataset.take(length):
+                yield _format_synthetic_dict(x), int(bool(y))
+            concept_id += 1
+            total += length
+
+    feature_names = ["f0", "f1"]
+    return StreamInfo(
+        iterator_fn=iterator,
+        n_features=len(feature_names),
+        n_classes=2,
+        dataset_type="sine",
+        dataset_name=dataset_name,
+        feature_names=feature_names,
+        classes=[0, 1],
+    )
+
+
+def _build_stagger_stream(dataset_name: str, seed: int, **kwargs: Any) -> StreamInfo:
+    cfg = STAGGER_DEFAULT.get(dataset_name)
+    if cfg is None:
+        raise ValueError(f"未知的 STAGGER 配置: {dataset_name}")
+    functions = kwargs.get("classification_functions", cfg["classification_functions"])
+    segment_length = int(kwargs.get("segment_length", cfg["segment_length"]))
+
+    def iterator() -> Iterator[Tuple[Dict[str, float], Any]]:
+        total = 0
+        concept_id = 0
+        n_samples = kwargs.get("n_samples", segment_length * len(functions))
+        while total < n_samples:
+            length = min(segment_length, n_samples - total)
+            dataset = synth.STAGGER(
+                classification_function=functions[concept_id % len(functions)],
+                seed=seed + concept_id * 73,
+                balance_classes=bool(kwargs.get("balance_classes", cfg["balance_classes"])),
+            )
+            for x, y in dataset.take(length):
+                yield _format_synthetic_dict(x), int(bool(y))
+            concept_id += 1
+            total += length
+
+    feature_names = ["f0", "f1", "f2"]
+    return StreamInfo(
+        iterator_fn=iterator,
+        n_features=len(feature_names),
+        n_classes=2,
+        dataset_type="stagger",
         dataset_name=dataset_name,
         feature_names=feature_names,
         classes=[0, 1],
@@ -264,8 +386,8 @@ def generate_and_save_synth_stream(
     生成一个带概念漂移的合成流（SEA 或 Hyperplane），并把数据和漂移真值落盘。
     """
     dataset_type = dataset_type.lower()
-    if dataset_type not in {"sea", "hyperplane"}:
-        raise ValueError("generate_and_save_synth_stream 仅支持 SEA/Hyperplane")
+    if dataset_type not in {"sea", "hyperplane", "sine", "stagger"}:
+        raise ValueError("generate_and_save_synth_stream 仅支持 SEA/Hyperplane/Sine/STAGGER")
 
     segments, generator_meta = _build_synth_segments(
         dataset_type=dataset_type,
@@ -370,7 +492,7 @@ def load_saved_synth_stream(
         iterator_fn=iterator,
         n_features=len(feature_names),
         n_classes=int(meta.get("n_classes", 2)),
-        dataset_type=meta.get("dataset_type", "sea_saved"),
+        dataset_type=meta.get("dataset_type", "synth_saved"),
         dataset_name=dataset_name,
         feature_names=feature_names,
         classes=meta.get("classes", [0, 1]),
@@ -472,12 +594,132 @@ def _build_synth_segments(
             },
         }
         return segments, generator_meta
+    if dataset_type == "sine":
+        cfg = SINE_DEFAULT.get(dataset_name)
+        classification_functions = drift_cfg.get(
+            "classification_functions", cfg["classification_functions"] if cfg else [0, 1]
+        )
+        segment_length = int(
+            drift_cfg.get("segment_length", cfg["segment_length"] if cfg else 1000)
+        )
+        segments = []
+        total = 0
+        concept_id = 0
+        while total < n_samples:
+            length = min(segment_length, n_samples - total)
+            params = {
+                "classification_function": classification_functions[concept_id % len(classification_functions)],
+                "seed": seed + concept_id * 17,
+                "balance_classes": bool(
+                    drift_cfg.get("balance_classes", cfg["balance_classes"] if cfg else False)
+                ),
+                "has_noise": bool(drift_cfg.get("has_noise", cfg["has_noise"] if cfg else False)),
+            }
+            segments.append(
+                {
+                    "concept_id": concept_id,
+                    "length": length,
+                    "dataset_params": params,
+                }
+            )
+            total += length
+            concept_id += 1
+        generator_meta = {
+            "library": "river",
+            "class": "Sine",
+            "params": {
+                "classification_functions": classification_functions,
+                "segment_length": segment_length,
+                "seed": seed,
+            },
+        }
+        return segments, generator_meta
+    if dataset_type == "stagger":
+        cfg = STAGGER_DEFAULT.get(dataset_name)
+        classification_functions = drift_cfg.get(
+            "classification_functions", cfg["classification_functions"] if cfg else [0, 1, 2]
+        )
+        segment_length = int(
+            drift_cfg.get("segment_length", cfg["segment_length"] if cfg else 1000)
+        )
+        segments = []
+        total = 0
+        concept_id = 0
+        while total < n_samples:
+            length = min(segment_length, n_samples - total)
+            params = {
+                "classification_function": classification_functions[concept_id % len(classification_functions)],
+                "seed": seed + concept_id * 23,
+                "balance_classes": bool(
+                    drift_cfg.get("balance_classes", cfg["balance_classes"] if cfg else False)
+                ),
+            }
+            segments.append(
+                {
+                    "concept_id": concept_id,
+                    "length": length,
+                    "dataset_params": params,
+                }
+            )
+            concept_id += 1
+            total += length
+        generator_meta = {
+            "library": "river",
+            "class": "STAGGER",
+            "params": {
+                "classification_functions": classification_functions,
+                "segment_length": segment_length,
+                "seed": seed,
+            },
+        }
+        return segments, generator_meta
     raise ValueError(f"未知的合成流类型: {dataset_type}")
 
 
 def _iter_segment(dataset_type: str, seg: Dict[str, Any]) -> Iterator[Tuple[Dict[str, float], Any]]:
     if dataset_type == "sea":
         dataset = synth.SEA(**seg["dataset_params"])
-    else:
+    elif dataset_type == "hyperplane":
         dataset = synth.Hyperplane(**seg["dataset_params"])
+    elif dataset_type == "sine":
+        dataset = synth.Sine(**seg["dataset_params"])
+    elif dataset_type == "stagger":
+        dataset = synth.STAGGER(**seg["dataset_params"])
+    else:
+        raise ValueError(f"Unsupported dataset type for iter segment: {dataset_type}")
     return dataset.take(seg["length"])
+
+
+def generate_default_abrupt_synth_datasets(
+    seeds: List[int] | Tuple[int, ...] = (1,),
+    out_root: str = "data/synthetic",
+) -> None:
+    """为默认的突变漂移合成流生成 parquet + meta。"""
+    for dataset_name, cfg in DEFAULT_ABRUPT_SYNTH_DATASETS.items():
+        for seed in seeds:
+            out_dir = Path(out_root) / dataset_name
+            data_path = out_dir / f"{dataset_name}__seed{seed}_data.parquet"
+            if data_path.exists():
+                continue
+            generate_and_save_synth_stream(
+                dataset_type=cfg["dataset_type"],
+                dataset_name=dataset_name,
+                n_samples=cfg["n_samples"],
+                seed=seed,
+                out_root=out_root,
+                **cfg["drift_cfg"],
+            )
+
+
+def _cli() -> None:
+    parser = argparse.ArgumentParser(description="data.streams 工具 CLI")
+    parser.add_argument("--cmd", choices=["generate_default_abrupt"], required=True)
+    parser.add_argument("--seeds", nargs="*", type=int, default=[1], help="生成使用的随机种子列表")
+    parser.add_argument("--out_root", default="data/synthetic")
+    args = parser.parse_args()
+    if args.cmd == "generate_default_abrupt":
+        generate_default_abrupt_synth_datasets(seeds=args.seeds, out_root=args.out_root)
+
+
+if __name__ == "__main__":
+    _cli()

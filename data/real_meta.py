@@ -28,4 +28,3 @@ def load_insects_abrupt_balanced_meta(
         with path.open("w", encoding="utf-8") as f:
             json.dump(DEFAULT_INSECTS_META, f, indent=2)
     return json.loads(path.read_text(encoding="utf-8"))
-
