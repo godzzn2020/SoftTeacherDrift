@@ -18,7 +18,13 @@
 - `experiments/offline_detector_sweep.py`：
   - 读取已有 `logs/{dataset}/{dataset}__{model}__seed{seed}.csv` 与对应 meta，离线重放多组 drift detector 组合。
   - 内置 `DetectorConfig` 网格（error/entropy/divergence × ADWIN/PageHinkley），输出 `results/offline_detector_grid.csv` 与 per-dataset Markdown Top-N。
-  - CLI 支持 `--datasets`, `--seeds`, `--model_variant`, `--out_*`，方便批量筛选稳定的漂移检测配置。
+  - CLI 支持 `--datasets`, `--seeds`, `--model_variant`, `--out_*`，以及 `--debug_sanity` 快速验证 detector 是否会触发，方便批量筛选稳定的漂移检测配置。
+- `run_experiment.py` 与 `experiments/first_stage_experiments.py` 现均支持 `--monitor_preset`：
+  - `none`：禁用漂移检测，保持旧版 baseline 行为；
+  - `error_ph_meta`：使用 offline sweep 得到的学生误差 + PageHinkley(`alpha=0.15, delta=0.005, threshold=0.2, min_instances=25`);
+  - `divergence_ph_meta`：使用 JS 散度 + PageHinkley(`alpha=0.1, delta=0.005, threshold=0.05, min_instances=30`);
+  - `error_divergence_ph_meta`：同时启用上述两个 detector；
+  - 这些 preset 直接映射到 `DriftMonitor` 内部的 detector 组合，可与 scheduler 联动，也可以设为 `none` 只记录原始信号。
 - 默认配置（可在 `_default_experiment_configs` 或脚本常量中查看）：
   - 合成流：段长、漂移位置、种子等已固定；
   - 真实流：读取 `datasets/real/INSECTS_abrupt_balanced.csv` 并配套 meta（0-based positions）。

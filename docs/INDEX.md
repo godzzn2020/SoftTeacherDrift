@@ -10,7 +10,7 @@
 - [训练循环与日志](modules/training_loop.md) — `training/loop.py`, `run_experiment.py`
 - [Stage1 实验设置](modules/experiments_stage1.md) — `experiments/first_stage_experiments.py`
 - [漂移评估指标](modules/evaluation_metrics.md) — `evaluation/` 目录
+- [测试脚本与常用命令](modules/test_scripts.md) — 常用评估/训练脚本与命令示例
 
 ## 变更记录
 - [CHANGELOG](../changelog/CHANGELOG.md)
-

@@ -3,11 +3,72 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple
 
 import math
 
 from river import drift
+
+
+def get_drift_flag(detector: drift.base.DriftDetector) -> bool:
+    """
+    统一从 river 检测器读取是否触发漂移，保持与 offline sweep 脚本一致。
+    """
+    if hasattr(detector, "drift_detected"):
+        return bool(getattr(detector, "drift_detected"))
+    if hasattr(detector, "change_detected"):
+        return bool(getattr(detector, "change_detected"))
+    return False
+
+
+def _resolve_signal(values: Dict[str, float], key: str) -> float:
+    """根据别名获取信号值。"""
+    aliases = SIGNAL_ALIASES.get(key, (key,))
+    for candidate in aliases:
+        if candidate in values:
+            value = values[candidate]
+            if value is None:
+                continue
+            if isinstance(value, float) and math.isnan(value):
+                continue
+            return value
+    return float("nan")
+
+
+def _ph_detector(**kwargs: float) -> drift.PageHinkley:
+    """创建 PageHinkley 实例。"""
+    return drift.PageHinkley(**kwargs)
+
+
+def _build_error_ph_meta() -> Dict[str, drift.base.DriftDetector]:
+    return {
+        "error_rate": _ph_detector(delta=0.005, alpha=0.15, threshold=0.2, min_instances=25),
+    }
+
+
+def _build_divergence_ph_meta() -> Dict[str, drift.base.DriftDetector]:
+    return {
+        "divergence": _ph_detector(delta=0.005, alpha=0.1, threshold=0.05, min_instances=30),
+    }
+
+
+def _build_error_divergence_meta() -> Dict[str, drift.base.DriftDetector]:
+    detectors = _build_error_ph_meta()
+    detectors.update(_build_divergence_ph_meta())
+    return detectors
+
+
+MONITOR_PRESETS: Dict[str, Callable[[], Dict[str, drift.base.DriftDetector]]] = {
+    "error_ph_meta": _build_error_ph_meta,
+    "divergence_ph_meta": _build_divergence_ph_meta,
+    "error_divergence_ph_meta": _build_error_divergence_meta,
+}
+
+SIGNAL_ALIASES: Dict[str, Tuple[str, ...]] = {
+    "error_rate": ("error_rate", "student_error_rate"),
+    "divergence": ("divergence", "divergence_js"),
+    "teacher_entropy": ("teacher_entropy",),
+}
 
 
 @dataclass
@@ -26,11 +87,11 @@ class DriftMonitor:
         drift_flag = False
         severity = 0.0
         for name, detector in self.detectors.items():
-            value = values.get(name)
-            if value is None or math.isnan(value):
+            value = _resolve_signal(values, name)
+            if isinstance(value, float) and math.isnan(value):
                 continue
             detector.update(value)
-            if getattr(detector, "change_detected", False):
+            if get_drift_flag(detector):
                 drift_flag = True
                 delta = abs(value - self._prev_values.get(name, value))
                 severity = max(severity, delta)
@@ -41,11 +102,12 @@ class DriftMonitor:
         return drift_flag, severity
 
 
-def build_default_monitor() -> DriftMonitor:
-    """构建默认监控器，分别监控误差与散度。"""
-    detectors = {
-        "error_rate": drift.ADWIN(delta=0.002),
-        "divergence": drift.PageHinkley(min_instances=30, delta=0.05, threshold=20),
-    }
-    return DriftMonitor(detectors=detectors)
-
+def build_default_monitor(preset: str = "error_ph_meta") -> DriftMonitor:
+    """根据预设构建监控器。"""
+    if preset == "none":
+        return DriftMonitor(detectors={})
+    factory = MONITOR_PRESETS.get(preset)
+    if factory is None:
+        raise ValueError(f"未知 monitor preset: {preset}")
+    detectors_dict = factory()
+    return DriftMonitor(detectors=detectors_dict)

@@ -35,6 +35,20 @@ class DetectorConfig:
     value_scale: float = 1.0
 
 
+def get_drift_flag(detector: drift.base.DriftDetector) -> bool:
+    """
+    统一从 river 检测器中读取漂移标志。
+
+    - 依据当前 river 发行版（在本地验证）推荐的 `drift_detected` 属性；
+    - 为兼容旧版本，若无该属性则回退到 `change_detected`。
+    """
+    if hasattr(detector, "drift_detected"):
+        return bool(getattr(detector, "drift_detected"))
+    if hasattr(detector, "change_detected"):
+        return bool(getattr(detector, "change_detected"))
+    return False
+
+
 def load_synth_meta(dataset_name: str, seed: int, root: str = "data/synthetic") -> Dict[str, Any]:
     """
     读取合成流 meta.json。
@@ -82,7 +96,7 @@ def build_default_grid() -> List[DetectorConfig]:
             DetectorConfig(
                 signal_name="student_error_rate",
                 detector_type="ph",
-                params={"delta": 0.005, "lambda_": 0.15, "threshold": threshold, "min_instances": 25},
+                params={"delta": 0.005, "alpha": 0.15, "threshold": threshold, "min_instances": 25},
             )
         )
     for threshold in [0.5, 1.0, 2.0, 5.0]:
@@ -90,7 +104,7 @@ def build_default_grid() -> List[DetectorConfig]:
             DetectorConfig(
                 signal_name="teacher_entropy",
                 detector_type="ph",
-                params={"delta": 0.01, "lambda_": 0.5, "threshold": threshold, "min_instances": 20},
+                params={"delta": 0.01, "alpha": 0.5, "threshold": threshold, "min_instances": 20},
             )
         )
     for delta in [0.1, 0.05]:
@@ -107,7 +121,7 @@ def build_default_grid() -> List[DetectorConfig]:
                 DetectorConfig(
                     signal_name="divergence_js",
                     detector_type="ph",
-                    params={"delta": 0.005, "lambda_": 0.1, "threshold": threshold, "min_instances": 30},
+                params={"delta": 0.005, "alpha": 0.1, "threshold": threshold, "min_instances": 30},
                     value_scale=scale,
                 )
             )
@@ -135,7 +149,7 @@ def run_offline_detector(
             continue
         v_scaled = cfg.value_scale * float(value)
         detector.update(v_scaled)
-        if getattr(detector, "change_detected", False):
+        if get_drift_flag(detector):
             detections.append(int(idx))
     return detections
 
@@ -203,6 +217,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out_csv", default="results/offline_detector_grid.csv")
     parser.add_argument("--out_md_dir", default="results/offline_md")
     parser.add_argument("--top_k", type=int, default=10, help="每个数据集输出的配置数量")
+    parser.add_argument(
+        "--debug_sanity",
+        action="store_true",
+        help="运行简单的漂移检测 sanity check（不执行网格搜索）",
+    )
     return parser.parse_args()
 
 
@@ -265,8 +284,33 @@ def print_best_summary(df: pd.DataFrame) -> None:
         )
 
 
+def debug_sanity_check() -> None:
+    """简单 sanity check，验证 detector 会触发漂移。"""
+    values = [0.0] * 500 + [1.0] * 500
+    adwin = drift.ADWIN(delta=0.01)
+    ph = drift.PageHinkley(delta=0.005, threshold=5.0, min_instances=30)
+
+    adwin_detect = None
+    for idx, val in enumerate(values):
+        adwin.update(val)
+        if get_drift_flag(adwin):
+            adwin_detect = idx
+            break
+    ph_detect = None
+    for idx, val in enumerate(values):
+        ph.update(val)
+        if get_drift_flag(ph):
+            ph_detect = idx
+            break
+    print(f"[debug] ADWIN first drift at idx={adwin_detect}")
+    print(f"[debug] PageHinkley first drift at idx={ph_detect}")
+
+
 def main() -> None:
     args = parse_args()
+    if args.debug_sanity:
+        debug_sanity_check()
+        return
     datasets = ensure_list(args.datasets)
     if not datasets:
         raise ValueError("至少需要一个数据集")

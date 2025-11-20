@@ -40,6 +40,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hidden_dims", type=str, default="128,64")
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument(
+        "--monitor_preset",
+        type=str,
+        default="none",
+        choices=["none", "error_ph_meta", "divergence_ph_meta", "error_divergence_ph_meta"],
+        help="选择漂移检测器预设，none 表示不启用",
+    )
+    parser.add_argument(
         "--device",
         type=str,
         default="cuda" if torch.cuda.is_available() else "cpu",
@@ -68,6 +75,7 @@ def main() -> None:
         hidden_dims=parse_hidden_dims(args.hidden_dims),
         dropout=args.dropout,
         log_path=args.log_path,
+        monitor_preset=args.monitor_preset,
     )
     logs = run_ts_experiment(config=config, device=args.device)
     if logs.empty:

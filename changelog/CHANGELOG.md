@@ -19,3 +19,15 @@
 
 2025-11-20  [assistant]  修改 summary：修复 offline detector sweep 脚本的模块导入路径问题  
 影响文件：experiments/offline_detector_sweep.py
+
+2025-11-20  [assistant]  修改 summary：纠正 PageHinkley 参数名（lambda_→alpha），确保离线网格搜索能运行 PH 组合  
+影响文件：experiments/offline_detector_sweep.py
+
+2025-11-20  [assistant]  修改 summary：统一 river 漂移检测标志读取，修复在线/离线 detector 永不触发的问题，并补充 sanity check CLI  
+影响文件：experiments/offline_detector_sweep.py, drift/detectors.py, docs/modules/experiments_stage1.md
+
+2025-11-20  [assistant]  修改 summary：新增离线校准得出的 monitor presets，并在 Stage-1 CLI 暴露 `--monitor_preset`（none/error_ph_meta/divergence_ph_meta/error_divergence_ph_meta）  
+影响文件：drift/detectors.py, experiments/first_stage_experiments.py, run_experiment.py, docs/modules/experiments_stage1.md
+
+2025-11-20  [assistant]  修改 summary：整理可用测试脚本并约定维护规则，新建 `docs/modules/test_scripts.md`、在 INDEX/PROJECT_OVERVIEW 追加说明  
+影响文件：docs/modules/test_scripts.md, docs/INDEX.md, docs/PROJECT_OVERVIEW.md

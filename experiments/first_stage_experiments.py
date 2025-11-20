@@ -39,6 +39,7 @@ class ExperimentConfig:
     dropout: float = 0.1
     stream_kwargs: Dict[str, Any] = field(default_factory=dict)
     log_path: Optional[str] = None
+    monitor_preset: str = "none"
 
 
 def run_experiment(config: ExperimentConfig, device: str = "cpu") -> pd.DataFrame:
@@ -70,7 +71,7 @@ def run_experiment(config: ExperimentConfig, device: str = "cpu") -> pd.DataFram
         device=torch.device(device),
     )
     optimizer = torch.optim.Adam(model.student.parameters(), lr=config.initial_lr)
-    monitor = detectors.build_default_monitor()
+    monitor = detectors.build_default_monitor(preset=config.monitor_preset)
     initial_hparams = HParams(
         alpha=config.initial_alpha,
         lr=config.initial_lr,
@@ -130,6 +131,13 @@ def main() -> None:
         default="ts_drift_adapt",
         help="逗号分隔的模型变体列表，或 all",
     )
+    parser.add_argument(
+        "--monitor_preset",
+        type=str,
+        default="none",
+        choices=["none", "error_ph_meta", "divergence_ph_meta", "error_divergence_ph_meta"],
+        help="漂移检测器预设（none 表示不启用）",
+    )
     args = parser.parse_args()
 
     dataset_filters = _parse_list(args.datasets)
@@ -153,6 +161,7 @@ def main() -> None:
                 model_variant=model_variant,
                 seed=args.seed,
                 log_path=log_path,
+                monitor_preset=args.monitor_preset,
             )
             logs = run_experiment(cfg, device=args.device)
             final_acc = logs["metric_accuracy"].iloc[-1] if not logs.empty else float("nan")
@@ -246,4 +255,3 @@ def _default_experiment_configs(seed: int) -> List[ExperimentConfig]:
 
 if __name__ == "__main__":
     main()
-
