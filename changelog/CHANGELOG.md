@@ -43,3 +43,9 @@
 
 2025-11-20  [assistant]  修改 summary：新增 `experiments/summarize_online_results.py`（生成在线 runs/summary/Markdown/Accuracy & Detection SVG，并计算在线 MDR/MTD/MTFA/MTR），并在相关文档补充 CLI  
 影响文件：experiments/summarize_online_results.py, docs/modules/test_scripts.md, docs/modules/experiments_stage1.md
+
+2025-11-20  [assistant]  修改 summary：Stage-1 默认实验新增 `sine_abrupt4` 与 `stagger_abrupt3`，确保并行/批量脚本能覆盖离线调参的合成流  
+影响文件：experiments/first_stage_experiments.py, docs/modules/experiments_stage1.md
+
+2025-11-20  [assistant]  修改 summary：统一 CLI 脚本的 `sys.path` 注入规范（以避免 `ModuleNotFoundError`），并在文档中明确要求  
+影响文件：run_experiment.py, docs/modules/test_scripts.md, docs/PROJECT_OVERVIEW.md

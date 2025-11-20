@@ -3,7 +3,18 @@
 ## 目的
 
 - 汇总当前仓库中“可直接运行”的训练、评估、诊断脚本，描述 CLI 参数、默认值与示例命令。
-- 约定：**新增或调整此类脚本时，必须同步更新本文件**，保证测试入口始终可查。
+- 约定：  
+  - **新增或调整此类脚本时，必须同步更新本文件**，保证测试入口始终可查；  
+  - **所有 CLI 脚本都要在文件开头注入 `Path(__file__).resolve().parents[1]` 到 `sys.path`**（示例如下），以便直接 `python xxx.py` 时能找到 `data/`、`models/` 等模块。
+
+```python
+import sys
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+```
 
 ## 离线 / 评估脚本
 

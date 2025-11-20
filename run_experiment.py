@@ -5,6 +5,16 @@ from __future__ import annotations
 import argparse
 from typing import List
 
+import sys
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[0]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+PARENT = ROOT_DIR.parent
+if str(PARENT) not in sys.path:
+    sys.path.insert(0, str(PARENT))
+
 import torch
 
 from experiments.first_stage_experiments import (
@@ -18,7 +28,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset_type",
         required=True,
-        choices=["sea", "hyperplane", "uspds_csv", "insects_river", "insects_real", "sea_saved", "hyperplane_saved", "synth_saved"],
+        choices=[
+            "sea",
+            "sine",
+            "stagger",
+            "hyperplane",
+            "uspds_csv",
+            "insects_river",
+            "insects_real",
+            "sea_saved",
+            "hyperplane_saved",
+            "synth_saved",
+        ],
         help="数据集类型",
     )
     parser.add_argument("--dataset_name", required=True, help="数据集名称/变体")

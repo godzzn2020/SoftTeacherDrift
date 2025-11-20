@@ -33,7 +33,7 @@
   - `error_divergence_ph_meta`：同时启用上述两个 detector；
   - 这些 preset 直接映射到 `DriftMonitor` 内部的 detector 组合，可与 scheduler 联动，也可以设为 `none` 只记录原始信号。
 - 默认配置（可在 `_default_experiment_configs` 或脚本常量中查看）：
-  - 合成流：段长、漂移位置、种子等已固定；
+  - 合成流：目前包含 `sea_abrupt4`, `sine_abrupt4`, `stagger_abrupt3`（均 n_steps=800, batch_size=64, labeled_ratio=0.1, 初始超参同 sea）；
   - 真实流：读取本地 `datasets/real/INSECTS_abrupt_balanced.csv`（`dataset_type=insects_real`），避免 river 在线下载 404，meta 信息仍来自配套 JSON（0-based positions）。
 
 ## 示例命令

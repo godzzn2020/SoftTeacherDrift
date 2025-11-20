@@ -2,6 +2,22 @@
 <rect x="0" y="0" width="960" height="200" fill="#ffffff" stroke="#dddddd"/>
 <text x="480.0" y="25" text-anchor="middle" font-size="16">stagger_abrupt3__ts_drift_adapt__seed1 Drift Timeline</text>
 <line x1="50" y1="100.0" x2="910" y2="100.0" stroke="#555555"/>
-<line x1="336.07" y1="60" x2="336.07" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
-<line x1="623.04" y1="60" x2="623.04" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="385.30" y1="60" x2="385.30" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="721.66" y1="60" x2="721.66" y2="180" stroke="#999999" stroke-width="2" stroke-dasharray="4,4"/>
+<line x1="75.83" y1="60" x2="75.83" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="88.75" y1="60" x2="88.75" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="385.82" y1="60" x2="385.82" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="396.58" y1="60" x2="396.58" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="412.73" y1="60" x2="412.73" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="439.64" y1="60" x2="439.64" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="466.55" y1="60" x2="466.55" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="493.45" y1="60" x2="493.45" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="590.33" y1="60" x2="590.33" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="722.72" y1="60" x2="722.72" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="729.17" y1="60" x2="729.17" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="749.62" y1="60" x2="749.62" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="761.46" y1="60" x2="761.46" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="776.53" y1="60" x2="776.53" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="803.44" y1="60" x2="803.44" y2="180" stroke="#d62728" stroke-width="2"/>
+<line x1="852.95" y1="60" x2="852.95" y2="180" stroke="#d62728" stroke-width="2"/>
 </svg>
