@@ -1,0 +1,13 @@
+dataset,model,seed,MDR,MTD,MTFA,MTR,acc_final,n_gt_drifts,n_detected,sample_count
+INSECTS_abrupt_balanced,baseline_student,2.0,1.0,,,,0.31046858541323696,5.0,0.0,52847.0
+INSECTS_abrupt_balanced,mean_teacher,2.0,1.0,,,,0.31098580177998114,5.0,0.0,52847.0
+INSECTS_abrupt_balanced,ts_drift_adapt,2.0,1.0,,,,0.3033852441955078,5.0,0.0,52847.0
+sea_abrupt4,baseline_student,2.0,1.0,,,,0.8578,4.0,0.0,50000.0
+sea_abrupt4,mean_teacher,2.0,1.0,,,,0.8594533333333333,4.0,0.0,50000.0
+sea_abrupt4,ts_drift_adapt,2.0,1.0,,,,0.8523266666666668,4.0,0.0,50000.0
+sine_abrupt4,baseline_student,2.0,1.0,,,,0.6947333333333333,4.0,0.0,50000.0
+sine_abrupt4,mean_teacher,2.0,1.0,,,,0.69354,4.0,0.0,50000.0
+sine_abrupt4,ts_drift_adapt,2.0,1.0,,,,0.6846066666666667,4.0,0.0,50000.0
+stagger_abrupt3,baseline_student,2.0,1.0,,,,0.8741277777777778,2.0,0.0,60000.0
+stagger_abrupt3,mean_teacher,2.0,1.0,,,,0.8695277777777778,2.0,0.0,60000.0
+stagger_abrupt3,ts_drift_adapt,2.0,1.0,,,,0.8643222222222221,2.0,0.0,60000.0

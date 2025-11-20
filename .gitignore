@@ -1,3 +1,4 @@
 *.pyc
-*.csv
 *.parquet
+data/synthetic
+datasets
