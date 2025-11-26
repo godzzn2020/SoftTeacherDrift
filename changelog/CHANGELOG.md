@@ -49,3 +49,6 @@
 
 2025-11-20  [assistant]  修改 summary：统一 CLI 脚本的 `sys.path` 注入规范（以避免 `ModuleNotFoundError`），并在文档中明确要求  
 影响文件：run_experiment.py, docs/modules/test_scripts.md, docs/PROJECT_OVERVIEW.md
+
+2025-11-20  [assistant]  修改 summary：新增 `experiments/stage1_multi_seed.py`（自动运行多 seed 实验、汇总 Raw/Summary CSV 与 Markdown，并在训练前自动生成对应 seed 的合成流 parquet/meta），文档同步添加使用说明  
+影响文件：experiments/stage1_multi_seed.py, docs/modules/experiments_stage1.md, docs/modules/test_scripts.md

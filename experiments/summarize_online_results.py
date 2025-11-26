@@ -23,6 +23,21 @@ from data.real_meta import load_insects_abrupt_balanced_meta
 SYNTH_DATASETS = {"sea_abrupt4", "sine_abrupt4", "stagger_abrupt3"}
 REAL_DATASETS = {"INSECTS_abrupt_balanced"}
 
+SYNTH_FALLBACK_META = {
+    "sea_abrupt4": {
+        "n_samples": 50_000,
+        "drifts": [{"start": 10_000}, {"start": 20_000}, {"start": 30_000}, {"start": 40_000}],
+    },
+    "sine_abrupt4": {
+        "n_samples": 50_000,
+        "drifts": [{"start": 10_000}, {"start": 20_000}, {"start": 30_000}, {"start": 40_000}],
+    },
+    "stagger_abrupt3": {
+        "n_samples": 60_000,
+        "drifts": [{"start": 20_000}, {"start": 40_000}],
+    },
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="汇总在线实验结果（含漂移指标）")
@@ -124,6 +139,9 @@ def summarize_run(df: pd.DataFrame) -> Dict[str, float]:
 def load_synth_meta(dataset_name: str, seed: int, root: str) -> Dict[str, object]:
     meta_path = Path(root) / dataset_name / f"{dataset_name}__seed{seed}_meta.json"
     if not meta_path.exists():
+        fallback = SYNTH_FALLBACK_META.get(dataset_name)
+        if fallback:
+            return fallback
         raise FileNotFoundError(f"缺少合成流 meta：{meta_path}")
     return json.loads(meta_path.read_text())
 

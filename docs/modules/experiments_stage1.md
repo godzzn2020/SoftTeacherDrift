@@ -22,6 +22,20 @@
 - `experiments/summarize_online_results.py`：
   - 汇总在线训练日志（`logs/`）并生成 `results/online_runs.csv`、`results/online_summary.csv`、`results/online_summary.md`。
   - 自带轻量级 SVG 绘图，将每个数据集的 Accuracy 曲线输出到 `figures/online_accuracy/`，并在 `figures/online_detections/` 绘制检测时间线；同时按日志中的 `drift_flag` 计算在线 MDR/MTD/MTFA/MTR，方便与离线 detector 结果对照。
+- `experiments/stage1_multi_seed.py`：
+  - 为多数据集 × 多模型 × 多随机种子循环调用 `run_experiment.py`，默认 datasets=`sea_abrupt4,sine_abrupt4,stagger_abrupt3`、models=`baseline_student,mean_teacher,ts_drift_adapt`、seeds=`1 2 3 4 5`，并统一透传 `--monitor_preset`（默认 `error_ph_meta`）。
+  - 执行前会自动调用 `data.streams.generate_default_abrupt_synth_datasets`，确保所需的合成流 parquet/meta 在 `data/synthetic/` 下生成（覆盖所有传入 seed）。
+  - 运行结束后调用 online summarizer 逻辑收集指标，输出 `results/stage1_multi_seed_raw.csv`（逐 seed）、`results/stage1_multi_seed_summary.csv`（按 dataset+model 的 mean/std），以及 `results/stage1_multi_seed_md/{dataset}_multi_seed_summary.md`（Markdown 表）。
+  - 示例命令：
+    ```bash
+    python experiments/stage1_multi_seed.py \
+      --datasets sea_abrupt4,sine_abrupt4,stagger_abrupt3 \
+      --models baseline_student,mean_teacher,ts_drift_adapt \
+      --seeds 1 2 3 4 5 \
+      --monitor_preset error_ph_meta \
+      --gpus 0,1 \
+      --max_jobs_per_gpu 3
+    ```
 - `experiments/parallel_stage1_launcher.py`：
   - 基于 `_default_experiment_configs` 构建 (dataset × model × seed) 组合。
   - 通过指定 `--gpus` 与 `--max_jobs_per_gpu`，并行启动多个 `run_experiment.py` 子进程（内部设置 `CUDA_VISIBLE_DEVICES`），可将 12 个 Stage-1 任务平均分摊到多张卡上。

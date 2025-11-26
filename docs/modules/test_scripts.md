@@ -168,6 +168,33 @@ python experiments/summarize_online_results.py \
   --fig_dir figures/online_accuracy
 ```
 
+### experiments/stage1_multi_seed.py
+
+- 作用：批量运行 Stage-1 多 seed 实验（默认覆盖 `sea_abrupt4,sine_abrupt4,stagger_abrupt3` × `baseline_student,mean_teacher,ts_drift_adapt` × `seed=1..5`），并将结果聚合成 Raw/Summary CSV 与 per-dataset Markdown 表。
+- 核心参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--datasets` / `--models` | 逗号分隔列表 | `sea_abrupt4,sine_abrupt4,stagger_abrupt3` / `baseline_student,mean_teacher,ts_drift_adapt` |
+| `--seeds` | 多个 seed | `1 2 3 4 5` |
+| `--monitor_preset` | 统一传给 run_experiment | `error_ph_meta` |
+| `--device` | run_experiment 的 --device | `cuda` |
+| `--gpus` / `--max_jobs_per_gpu` | 并行运行时的 GPU 设置 | `0,1` / `2`（填 `none` 可顺序运行） |
+| `--logs_root` | 日志根目录 | `logs` |
+| `--out_csv_raw` / `--out_csv_summary` / `--out_md_dir` | 输出路径 | `results/stage1_multi_seed_raw.csv` 等 |
+
+- 示例：
+
+```bash
+python experiments/stage1_multi_seed.py \
+  --datasets sea_abrupt4,sine_abrupt4,stagger_abrupt3 \
+  --models baseline_student,mean_teacher,ts_drift_adapt \
+  --seeds 1 2 3 4 5 \
+  --monitor_preset error_ph_meta \
+  --gpus 0,1 \
+  --max_jobs_per_gpu 3
+```
+
 ## 维护规则
 
 - 若新增测试/评估脚本，或为现有脚本添加重要 CLI 参数，请务必同步更新本文件：
