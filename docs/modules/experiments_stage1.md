@@ -22,6 +22,9 @@
 - `experiments/summarize_online_results.py`：
   - 汇总在线训练日志（`logs/`）并生成 `results/online_runs.csv`、`results/online_summary.csv`、`results/online_summary.md`。
   - 自带轻量级 SVG 绘图，将每个数据集的 Accuracy 曲线输出到 `figures/online_accuracy/`，并在 `figures/online_detections/` 绘制检测时间线；同时按日志中的 `drift_flag` 计算在线 MDR/MTD/MTFA/MTR，方便与离线 detector 结果对照。
+- `evaluation/phaseA_signal_drift_analysis_synth.py`：
+  - 针对合成流日志的信号层面对齐分析脚本，会读取 `logs/` 中的 `student_error_rate`、`teacher_entropy`、`divergence_js` 与 `data/synthetic/..._meta.json` 的真值漂移。
+  - 输出每个 run 的信号 + 漂移叠加图，以及漂移前后窗口的统计（写入 `summary_pre_post_stats.csv`），用于验证 offline 选择的信号是否与真实漂移一致。
 - `experiments/stage1_multi_seed.py`：
   - 为多数据集 × 多模型 × 多随机种子循环调用 `run_experiment.py`，默认 datasets=`sea_abrupt4,sine_abrupt4,stagger_abrupt3`、models=`baseline_student,mean_teacher,ts_drift_adapt`、seeds=`1 2 3 4 5`，并统一透传 `--monitor_preset`（默认 `error_ph_meta`）。
   - 执行前会自动调用 `data.streams.generate_default_abrupt_synth_datasets`，确保所需的合成流 parquet/meta 在 `data/synthetic/` 下生成（覆盖所有传入 seed）。

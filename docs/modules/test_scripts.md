@@ -18,6 +18,31 @@ if str(ROOT_DIR) not in sys.path:
 
 ## 离线 / 评估脚本
 
+### evaluation/phaseA_signal_drift_analysis_synth.py
+
+- 作用：针对合成数据流，读取 `logs/{dataset}/{dataset}__{model}__seed{seed}.csv` 和 `data/synthetic/{dataset}/{dataset}__seed{seed}_meta.json`，绘制三种漂移信号（student_error_rate / teacher_entropy / divergence_js）与真实漂移的对齐图，并在漂移前后窗口统计信号均值差异，输出汇总 CSV，帮助分析 offline 搜索到的信号是否与真值一致。
+- 核心参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--logs_root` | 日志根目录 | `logs` |
+| `--synthetic_root` | 合成数据 meta 根目录 | `data/synthetic` |
+| `--datasets` | 需要分析的合成数据集（逗号分隔） | **必填** |
+| `--model_variant_pattern` | 可选字符串过滤器，只分析包含该子串的模型 | 空 |
+| `--output_dir` | 图像/CSV 输出目录 | `results/phaseA_synth_analysis` |
+| `--window` | 漂移前后窗口大小（以 step 计） | `50` |
+
+- 输出：`{output_dir}/plots/{dataset}__{model}__seed{seed}.png` 以及 `summary_pre_post_stats.csv`（包含每个漂移点的 pre/post 均值与差值）。
+
+- 示例命令：
+
+```bash
+python evaluation/phaseA_signal_drift_analysis_synth.py \
+  --datasets sea_abrupt4,sine_abrupt4 \
+  --model_variant_pattern ts_drift_adapt \
+  --window 100
+```
+
 ### experiments/offline_detector_sweep.py
 
 - 作用：在已有训练日志和 meta.json 上离线网格搜索 detector 组合，输出 MDR/MTD/MTFA/MTR、CSV 及 per-dataset Markdown。
