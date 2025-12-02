@@ -52,3 +52,9 @@
 
 2025-11-20  [assistant]  修改 summary：新增 `experiments/stage1_multi_seed.py`（自动运行多 seed 实验、汇总 Raw/Summary CSV 与 Markdown，并在训练前自动生成对应 seed 的合成流 parquet/meta），文档同步添加使用说明  
 影响文件：experiments/stage1_multi_seed.py, docs/modules/experiments_stage1.md, docs/modules/test_scripts.md
+
+2025-11-20  [assistant]  修改 summary：新增 `experiments/run_real_adaptive.py`，可在 Electricity/NOAA/INSECTS/Airlines 等真实流上批量运行 `ts_drift_adapt` 多 seed 实验，并在测试脚本文档登记  
+影响文件：experiments/run_real_adaptive.py, docs/modules/test_scripts.md
+
+2025-11-20  [assistant]  修改 summary：新增 `evaluation/phaseB_signal_drift_analysis_real.py`，用于真实数据集的信号/检测可视化，并在文档登记该脚本  
+影响文件：evaluation/phaseB_signal_drift_analysis_real.py, docs/modules/test_scripts.md, docs/modules/experiments_stage1.md

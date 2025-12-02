@@ -284,8 +284,13 @@ def _build_uspds_csv_stream(
     if target_col not in df.columns:
         raise ValueError(f"label 列 {target_col} 不存在")
     feature_cols = [c for c in df.columns if c != target_col]
-    X = df[feature_cols]
+    X = df[feature_cols].copy()
+    for col in feature_cols:
+        if not pd.api.types.is_numeric_dtype(X[col]):
+            X[col] = pd.Categorical(X[col]).codes.astype(float)
     y = df[target_col]
+    if not pd.api.types.is_numeric_dtype(y):
+        y = pd.Categorical(y).codes.astype(int)
 
     def iterator() -> Iterator[Tuple[Dict[str, float], Any]]:
         return rv_stream.iter_pandas(X=X, y=y)

@@ -35,8 +35,21 @@ def parse_args() -> argparse.Namespace:
         help="可选，仅保留 model_variant 名称中包含该子串的 run",
     )
     parser.add_argument("--output_dir", type=str, default="results/phaseA_synth_analysis")
-    parser.add_argument("--window", type=int, default=50, help="pre/post 统计窗口大小（以 step 计）")
+    parser.add_argument(
+        "--window",
+        type=int,
+        default=100,
+        help="pre/post 统计窗口大小（以样本数计，例如 100 表示前后各 100 个样本）",
+    )
     return parser.parse_args()
+
+
+def infer_x_col(df: pd.DataFrame) -> str:
+    if "sample_idx" in df.columns:
+        return "sample_idx"
+    if "seen_samples" in df.columns:
+        return "seen_samples"
+    return "step"
 
 
 def find_logs(
@@ -98,6 +111,7 @@ def plot_run(
     drifts: Sequence[int],
     run_id: str,
     out_dir: Path,
+    x_col: str,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     keys = [
@@ -107,19 +121,20 @@ def plot_run(
         ("metric_accuracy", "Accuracy"),
     ]
     fig, axes = plt.subplots(len(keys), 1, figsize=(12, 9), sharex=True)
+    x = df[x_col].to_numpy()
     for ax, (col, title) in zip(axes, keys):
         if col not in df:
             ax.set_title(f"{title} (missing)")
             continue
-        ax.plot(df["step"], df[col], label=col, linewidth=1.2)
+        ax.plot(x, df[col], label=col, linewidth=1.2)
         ax.set_ylabel(title)
         for d in drifts:
             ax.axvline(d, color="red", linestyle="--", alpha=0.5)
         if col == "metric_accuracy" and "drift_flag" in df:
-            flagged = df.loc[df["drift_flag"] == 1, "step"].tolist()
+            flagged = df.loc[df["drift_flag"] == 1, x_col].tolist()
             for f in flagged:
                 ax.axvline(f, color="blue", linestyle=":", alpha=0.3)
-    axes[-1].set_xlabel("step")
+    axes[-1].set_xlabel(x_col)
     fig.suptitle(run_id)
     fig.tight_layout()
     fig.savefig(out_dir / f"{run_id}.png", dpi=150)
@@ -133,18 +148,18 @@ def compute_pre_post_stats(
     model: str,
     seed: str,
     window: int,
+    x_col: str,
 ) -> List[Dict[str, any]]:
     stats: List[Dict[str, any]] = []
     if not drifts or df.empty:
         return stats
     signals = ["student_error_rate", "teacher_entropy", "divergence_js", "metric_accuracy"]
-    steps = df["step"].to_numpy()
+    x = df[x_col].to_numpy()
     for idx, drift_step in enumerate(drifts):
-        nearest_idx = (np.abs(steps - drift_step)).argmin()
-        left = max(0, nearest_idx - window)
-        right = min(len(df), nearest_idx + window)
-        pre_slice = df.iloc[left:nearest_idx]
-        post_slice = df.iloc[nearest_idx:right]
+        pre_mask = (x >= drift_step - window) & (x < drift_step)
+        post_mask = (x >= drift_step) & (x < drift_step + window)
+        pre_slice = df.loc[pre_mask]
+        post_slice = df.loc[post_mask]
         for sig in signals:
             if sig not in df:
                 continue
@@ -198,7 +213,8 @@ def main() -> None:
                 continue
             run_id = f"{dataset_name}__{model_variant}__seed{seed}"
             print(f"[info] run={run_id}, drift_count={len(drifts)}")
-            plot_run(df, drifts, run_id, plots_dir)
+            x_col = infer_x_col(df)
+            plot_run(df, drifts, run_id, plots_dir, x_col=x_col)
             stats_records.extend(
                 compute_pre_post_stats(
                     df,
@@ -207,6 +223,7 @@ def main() -> None:
                     model_variant,
                     seed,
                     args.window,
+                    x_col=x_col,
                 )
             )
             total_runs += 1

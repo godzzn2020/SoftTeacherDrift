@@ -43,6 +43,28 @@ python evaluation/phaseA_signal_drift_analysis_synth.py \
   --window 100
 ```
 
+### evaluation/phaseB_signal_drift_analysis_real.py
+
+- 作用：针对真实数据集的日志，绘制三种漂移信号与检测事件（`drift_flag`）的时间曲线，并输出每个 run 的检测统计，帮助在没有真值漂移的情况下检视 detector 行为。
+- 核心参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--logs_root` | 日志根目录 | `logs` |
+| `--datasets` | 逗号分隔的数据集名称（例如 Electricity,NOAA） | **必填** |
+| `--model_variant_pattern` | 只分析满足该子串的模型（默认 `ts_drift_adapt`） | `ts_drift_adapt` |
+| `--output_dir` | 图像与 summary 输出目录 | `results/phaseB_real_analysis` |
+
+- 输出：`plots/{dataset}__{model}__seed{seed}.png`（信号 + detection 纵线）与 `summary_detection_stats.csv`。
+
+- 示例：
+
+```bash
+python evaluation/phaseB_signal_drift_analysis_real.py \
+  --datasets Electricity,NOAA,INSECTS_abrupt_balanced,Airlines \
+  --model_variant_pattern ts_drift_adapt
+```
+
 ### experiments/offline_detector_sweep.py
 
 - 作用：在已有训练日志和 meta.json 上离线网格搜索 detector 组合，输出 MDR/MTD/MTFA/MTR、CSV 及 per-dataset Markdown。
@@ -218,6 +240,31 @@ python experiments/stage1_multi_seed.py \
   --monitor_preset error_ph_meta \
   --gpus 0,1 \
   --max_jobs_per_gpu 3
+```
+
+### experiments/run_real_adaptive.py
+
+- 作用：在指定的真实数据集（默认 `datasets/real/Electricity.csv`, `NOAA.csv`, `INSECTS_abrupt_balanced.csv`, `Airlines.csv`）上仅运行 `ts_drift_adapt` 模型，循环多个 seed，并把日志写入 `logs/{dataset}/{dataset}__ts_drift_adapt__seed{seed}.csv`。
+- 核心参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--datasets` | 逗号分隔列表（需在脚本内置的 `REAL_DATASETS` 中） | `Electricity,NOAA,INSECTS_abrupt_balanced,Airlines` |
+| `--seeds` | 多个 seed | `1 2 3` |
+| `--monitor_preset` | 传给 run_experiment 的漂移检测配置 | `error_divergence_ph_meta` |
+| `--device` | 训练设备 | `cuda` |
+| `--logs_root` | 日志输出根目录 | `logs` |
+
+- 脚本自动为每个数据集指定 `dataset_type`、`csv_path`、`batch_size/n_steps/alpha/lr/lambda_u/tau` 等配置，与 Stage-1 真实流默认设置一致。
+
+- 示例：
+
+```bash
+python experiments/run_real_adaptive.py \
+  --datasets Electricity,NOAA,INSECTS_abrupt_balanced,Airlines \
+  --seeds 1 2 3 \
+  --monitor_preset error_divergence_ph_meta \
+  --device cuda
 ```
 
 ## 维护规则
