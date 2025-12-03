@@ -1,0 +1,2 @@
+dataset_name,model_variant,mean_acc_mean,mean_acc_std,final_acc_mean,final_acc_std,mean_drop_min_acc_mean,mean_drop_min_acc_std,max_drop_min_acc_mean,max_drop_min_acc_std,mean_drift_severity_mean,mean_drift_severity_std,runs
+sea_abrupt4,ts_drift_adapt,0.8260836748236629,0.002836458228284766,0.8724218417051718,0.0009008911223616911,-0.0004544284116359265,0.0002927690324235066,8.49097847296365e-05,0.0004414735498584621,0.1416666666666666,0.013888888888888909,2

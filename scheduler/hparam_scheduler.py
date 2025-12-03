@@ -63,6 +63,42 @@ def update_hparams(
     ), regime
 
 
+@dataclass
+class SeveritySchedulerConfig:
+    """severity-aware 调度的缩放系数。"""
+
+    alpha_scale: float = 0.3
+    lambda_u_scale: float = 0.7
+    tau_delta: float = 0.15
+    lr_scale: float = 0.5
+
+
+def update_hparams_with_severity(
+    state: SchedulerState,
+    prev_hparams: HParams,
+    drift_flag: bool,
+    detector_severity: float,
+    severity_norm: float,
+    config: SeveritySchedulerConfig | None = None,
+) -> Tuple[HParams, str]:
+    """基于 base 调度 + 严重度缩放更新超参。"""
+    base_hparams, regime = update_hparams(
+        state=state,
+        prev_hparams=prev_hparams,
+        drift_flag=drift_flag,
+        severity=detector_severity,
+    )
+    if not drift_flag or severity_norm <= 0.0:
+        return base_hparams, regime
+    cfg = config or SeveritySchedulerConfig()
+    k = max(0.0, min(1.0, severity_norm))
+    alpha = max(0.0, base_hparams.alpha * (1.0 - cfg.alpha_scale * k))
+    lr = max(1e-6, base_hparams.lr * (1.0 + cfg.lr_scale * k))
+    lambda_u = max(0.0, base_hparams.lambda_u * (1.0 - cfg.lambda_u_scale * k))
+    tau = min(1.0, max(0.0, base_hparams.tau + cfg.tau_delta * k))
+    return HParams(alpha=alpha, lr=lr, lambda_u=lambda_u, tau=tau), regime
+
+
 def _regime_target(regime: str, base: HParams) -> HParams:
     """根据策略返回目标超参。"""
     if regime == "stable":

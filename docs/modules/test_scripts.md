@@ -135,6 +135,32 @@ python evaluation/phaseC_severity_score_fit.py \
   --standardize
 ```
 
+### evaluation/phaseC_scheduler_ablation_synth.py
+
+- 作用：对比 baseline (`ts_drift_adapt`) 与 severity-aware (`ts_drift_adapt_severity`) scheduler，在现有合成流日志 + meta 上重算 `mean_acc`、`final_acc` 以及漂移窗口内的 `drop_min_acc`，量化严重度调度是否降低性能谷底。
+- 核心参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--logs_root` / `--synthetic_root` | 日志与 meta 根目录 | `logs` / `data/synthetic` |
+| `--datasets` | 合成流列表（逗号分隔） | **必填** |
+| `--model_variants` | 需要比较的模型 | `ts_drift_adapt,ts_drift_adapt_severity` |
+| `--seeds` | 随机种子列表（逗号或空格分隔） | `1,2,3,4,5` |
+| `--window` | `drop_min_acc` 的样本窗口 | `500` |
+| `--final_window` | final accuracy 的尾部窗口（按行数/批次数） | `200` |
+| `--output_dir` | 结果输出目录 | `results/phaseC_scheduler_ablation_synth` |
+
+- 示例：
+
+```bash
+python evaluation/phaseC_scheduler_ablation_synth.py \
+  --datasets sea_abrupt4,sine_abrupt4,stagger_abrupt3 \
+  --seeds 1,2,3,4,5 \
+  --model_variants ts_drift_adapt,ts_drift_adapt_severity \
+  --window 500 \
+  --final_window 200
+```
+
 ### experiments/offline_detector_sweep.py
 
 - 作用：在已有训练日志和 meta.json 上离线网格搜索 detector 组合，输出 MDR/MTD/MTFA/MTR、CSV 及 per-dataset Markdown。

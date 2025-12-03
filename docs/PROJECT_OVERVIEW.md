@@ -15,7 +15,8 @@
 - `data/streams.py`：统一的数据入口，包含实时生成、保存/加载合成流、批次切分等。
 - `models/teacher_student.py`：学生 MLP、教师 EMA 同构网络、监督 + 无监督损失。
 - `drift/signals.py` 与 `drift/detectors.py`：计算误差/熵/散度等批次信号，封装 ADWIN、PageHinkley。
-- `scheduler/hparam_scheduler.py`：基于漂移状态切换 stable / mild / severe regime，并更新 alpha、lr、lambda_u、tau。
+- `scheduler/hparam_scheduler.py`：基于漂移状态切换 stable / mild / severe regime，并更新 alpha、lr、lambda_u、tau；同时提供 severity-aware 调度接口。
+- `soft_drift/severity.py`：在线维护误差/熵/散度的漂移基线，输出严重度 `drift_severity_raw` / `drift_severity`，供 scheduler 使用。
 - `training/loop.py`：在线训练主循环，记录 batch 级日志；`run_experiment.py` & `experiments/first_stage_experiments.py` 提供 CLI 入口及批量实验脚本。
 - `evaluation/`：（已启动）聚焦漂移指标计算与实验日志评估，将持续扩展。
 
@@ -27,7 +28,7 @@
 - 训练日志默认写入 `logs/{dataset_name}/{dataset_name}__{model_variant}__seed{seed}.csv`，核心字段包括：
   - `step`, `seen_samples`, `dataset_name`, `dataset_type`, `model_variant`, `seed`
   - 评估：`metric_accuracy`, `metric_kappa`
-  - 漂移：`student_error_rate`, `teacher_entropy`, `divergence_js`, `drift_flag`, `drift_severity`, `regime`
+  - 漂移：`student_error_rate`, `teacher_entropy`, `divergence_js`, `drift_flag`, `monitor_severity`（检测器增量）、`drift_severity_raw`（严重度原值）、`drift_severity`（归一化 0–1 的严重度），`regime`
   - 调度：`alpha`, `lr`, `lambda_u`, `tau`
   - 训练：`supervised_loss`, `unsupervised_loss`, `timestamp`
 

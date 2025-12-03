@@ -25,6 +25,10 @@ from scheduler.hparam_scheduler import HParams, SchedulerState
 from training.loop import FeatureVectorizer, LabelEncoder, TrainingConfig, run_training_loop
 
 
+def _use_severity_scheduler(model_variant: str) -> bool:
+    return model_variant.endswith("_severity")
+
+
 @dataclass
 class ExperimentConfig:
     """单次实验的高层配置。"""
@@ -101,6 +105,7 @@ def run_experiment(config: ExperimentConfig, device: str = "cpu") -> pd.DataFram
         dataset_name=config.dataset_name,
         model_variant=config.model_variant,
         seed=config.seed,
+        use_severity_scheduler=_use_severity_scheduler(config.model_variant),
     )
     logs_df = run_training_loop(
         batch_iter=batch_iter,
@@ -157,7 +162,7 @@ def main() -> None:
     if not selected_datasets:
         raise ValueError("未匹配到任何数据集配置")
 
-    available_models = ["baseline_student", "mean_teacher", "ts_drift_adapt"]
+    available_models = ["baseline_student", "mean_teacher", "ts_drift_adapt", "ts_drift_adapt_severity"]
     model_list = model_filters or available_models
 
     for base_cfg in selected_datasets:

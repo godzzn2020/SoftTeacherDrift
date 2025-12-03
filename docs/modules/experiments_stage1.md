@@ -9,7 +9,7 @@
 
 - `experiments/first_stage_experiments.py`：
   - 定义 `ExperimentConfig`（数据、模型、训练超参、日志路径等）。
-  - 提供 `run_experiment(config, device)`，内部构建 stream、模型、监控器、scheduler，并调用 `run_training_loop`。
+  - 提供 `run_experiment(config, device)`，内部构建 stream、模型、监控器、scheduler，并调用 `run_training_loop`（若 `model_variant` 以 `_severity` 结尾，则自动启用 `SeverityCalibrator + severity-aware scheduler`）。
   - CLI 支持批量运行 `--datasets`、`--models` 参数，自动保存日志到 `logs/{dataset}/...`.
 - `experiments/abrupt_stage1_experiments.py`：
   - 专门运行 “突变漂移” 套餐：默认包含 `sea_abrupt4`, `sine_abrupt4`, `stagger_abrupt3`, `INSECTS_abrupt_balanced`。
@@ -31,8 +31,11 @@
 - `evaluation/phaseB_detection_ablation_synth.py`：
   - 离线重放 `DriftMonitor`，在合成流上比较 error/entropy/divergence 信号的 7 种 PageHinkley 组合的 MDR/MTD/MTFA/MTR，并输出 run 级与 dataset+preset 级别的统计结果。
   - 可用于分析信号组合的优劣，为线上选择 `monitor_preset` 提供依据。
+- `evaluation/phaseC_scheduler_ablation_synth.py`：
+  - 针对 `logs/{dataset}__{model_variant}__seed{seed}.csv` 与 `data/synthetic/..._meta.json`，计算 `mean_acc`、`final_acc` 以及每个漂移窗口的 `drop_min_acc`，对比 `ts_drift_adapt` 与 `ts_drift_adapt_severity`。
+  - 输出 `run_level_metrics.csv` 与 `summary_metrics_by_dataset_variant.csv`，用于验证严重度调度是否降低性能谷底（`mean/max drop_min_acc`）且保持整体准确率。
 - `experiments/stage1_multi_seed.py`：
-  - 为多数据集 × 多模型 × 多随机种子循环调用 `run_experiment.py`，默认 datasets=`sea_abrupt4,sine_abrupt4,stagger_abrupt3`、models=`baseline_student,mean_teacher,ts_drift_adapt`、seeds=`1 2 3 4 5`，并统一透传 `--monitor_preset`（默认 `error_ph_meta`）。
+  - 为多数据集 × 多模型 × 多随机种子循环调用 `run_experiment.py`，默认 datasets=`sea_abrupt4,sine_abrupt4,stagger_abrupt3`、models=`baseline_student,mean_teacher,ts_drift_adapt,ts_drift_adapt_severity`、seeds=`1 2 3 4 5`，并统一透传 `--monitor_preset`（默认 `error_ph_meta`）。
   - 执行前会自动调用 `data.streams.generate_default_abrupt_synth_datasets`，确保所需的合成流 parquet/meta 在 `data/synthetic/` 下生成（覆盖所有传入 seed）。
   - 运行结束后调用 online summarizer 逻辑收集指标，输出 `results/stage1_multi_seed_raw.csv`（逐 seed）、`results/stage1_multi_seed_summary.csv`（按 dataset+model 的 mean/std），以及 `results/stage1_multi_seed_md/{dataset}_multi_seed_summary.md`（Markdown 表）。
   - 示例命令：

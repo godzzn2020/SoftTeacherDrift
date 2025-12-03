@@ -109,13 +109,19 @@ def summarize_run(df: pd.DataFrame, dataset: str, model: str, seed: str) -> Dict
     detection_steps = (
         df.loc[df["drift_flag"] == 1, "step"].tolist() if "drift_flag" in df else []
     )
+    severity_col = "monitor_severity" if "monitor_severity" in df else None
+    if severity_col is None and "drift_severity" in df and "drift_severity_raw" in df:
+        # 新日志中 drift_severity 表示严重度感知值，因此 detector severity 落在 monitor_severity。
+        severity_col = "drift_severity_raw"
+    elif severity_col is None and "drift_severity" in df:
+        severity_col = "drift_severity"
     return {
         "dataset": dataset,
         "model": model,
         "seed": seed,
         "total_steps": int(df["step"].iloc[-1]) if not df.empty else 0,
         "detected_events": len(detection_steps),
-        "mean_severity": float(df["drift_severity"].mean()) if "drift_severity" in df else float("nan"),
+        "mean_severity": float(df[severity_col].mean()) if severity_col else float("nan"),
         "acc_final": float(df["metric_accuracy"].iloc[-1]) if "metric_accuracy" in df else float("nan"),
         "acc_mean": float(df["metric_accuracy"].mean()) if "metric_accuracy" in df else float("nan"),
         "detection_steps": detection_steps,

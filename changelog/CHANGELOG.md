@@ -62,5 +62,8 @@
 2025-11-20  [assistant]  修改 summary：新增 Phase C2 严重度拟合脚本 `evaluation/phaseC_severity_score_fit.py`，并在测试脚本文档记录 CLI，用于统一信号严重度指标  
 影响文件：evaluation/phaseC_severity_score_fit.py, docs/modules/test_scripts.md, changelog/CHANGELOG.md
 
+2025-11-20  [assistant]  修改 summary：引入 `SeverityCalibrator` + severity-aware scheduler（`ts_drift_adapt_severity`），训练日志新增 `monitor_severity`/`drift_severity_raw`/`drift_severity` 字段，并提供 Phase C3 调度消融脚本  
+影响文件：soft_drift/severity.py, scheduler/hparam_scheduler.py, training/loop.py, experiments/first_stage_experiments.py, experiments/stage1_multi_seed.py, experiments/parallel_stage1_launcher.py, evaluation/phaseB_signal_drift_analysis_real.py, evaluation/phaseC_scheduler_ablation_synth.py, docs/PROJECT_OVERVIEW.md, docs/modules/drift_and_scheduler.md, docs/modules/training_loop.md, docs/modules/experiments_stage1.md, docs/modules/test_scripts.md
+
 2025-11-20  [assistant]  修改 summary：扩展 `drift/detectors.py` 的 PageHinkley 预设为 error/entropy/divergence 的 7 种组合，并新增合成流检测消融脚本 `evaluation/phaseB_detection_ablation_synth.py`  
 影响文件：drift/detectors.py, evaluation/phaseB_detection_ablation_synth.py, docs/modules/drift_and_scheduler.md, docs/modules/test_scripts.md, docs/modules/experiments_stage1.md

@@ -38,6 +38,21 @@
 
 > 说明：多个信号组合时，会为每个信号创建独立的 PageHinkley 实例，只要任一信号触发就视为漂移。旧名称 `error_ph_meta` 与 `divergence_ph_meta` 仍保持兼容，等价于单信号版本。
 
+## 严重度校准（SeverityCalibrator）
+
+- `soft_drift/severity.py` 在训练循环中实时维护误差/散度/熵的 EMA 基线：
+  - `baseline_error`, `baseline_div`, `baseline_entropy` 通过 `ema_momentum` 慢速更新；
+  - 当 `drift_flag = 1` 时，计算三种“危险方向”的正向增量：
+    - `x_error_pos = max(0, error - baseline_error)`（学生错误率的上升）；
+    - `x_div_pos = max(0, divergence - baseline_div)`（师生分歧的扩大）；
+    - `x_entropy_pos = max(0, baseline_entropy - entropy)`（教师过度自信）。
+  - 对 `x_*` 在线估计 mean/std，变换为 `z_*` 后按 `(0.6, 0.3, 0.1)` 加权得到 `drift_severity_raw`；
+  - 将 `drift_severity_raw` 映射到 `[severity_low, severity_high]`（默认 `[0, 2]`）区间，再压缩到 `[0, 1]` 记作 `drift_severity`，供调度器使用。
+- 日志字段：
+  - `monitor_severity`：`DriftMonitor` 给出的单步增量（兼容旧版 `drift_severity` 定义）；
+  - `drift_severity_raw`：三信号融合后的原始严重度；
+  - `drift_severity`：归一化严重度，缺省仅在 `drift_flag=1` 时为正。
+
 ## 超参调度（Scheduler）
 
 - `scheduler/hparam_scheduler.py` 维护 `SchedulerState` 与 `HParams`：
@@ -46,6 +61,12 @@
     - **mild_drift**：检测器报警且严重度不大 → 略降 `alpha`、略升 `lr`、适度降低 `lambda_u`、适度降低 `tau`。
     - **severe_drift**：严重漂移 → 显著降低 `alpha`、提升 `lr`、减小 `lambda_u`、下调 `tau`。
   - `update_hparams` 输出新的超参并返回当前 regime，训练循环据此写入日志与调节优化器。
+  - `update_hparams_with_severity`：在基础调度的结果上，再按照 `drift_severity (s_norm)` 缩放：
+    - `alpha *= (1 - alpha_scale * s)`（默认 `alpha_scale=0.3`），严重漂移时更快“忘掉”旧教师；
+    - `lambda_u *= (1 - lambda_u_scale * s)`（默认 `0.7`），抑制伪标签误差传播；
+    - `tau += tau_delta * s`（默认 `0.15`），降低伪标签置信门槛；
+    - `lr *= (1 + lr_scale * s)`（默认 `0.5`），加速恢复；
+    - 缩放系数由 `SeveritySchedulerConfig` 管理，可在不同实验下调参。
 
 ## 关键代码片段
 
@@ -134,15 +155,15 @@
    - `teacher_entropy`（教师预测熵）；
    - `divergence`（教师–学生 JS 散度）。
 4. 将这些信号传入 `DriftMonitor.update(signals, step)`：
-   - 根据预设选择监控 `error_rate` / `divergence` 或两者；
-   - 如果某条检测器触发，返回 `drift_flag=True` 与当前批次的 `severity`。
-5. 调用 `update_hparams(scheduler_state, current_hparams, drift_flag, severity)`：
-   - 根据 `drift_flag` 和 `severity` 选择 regime（stable/mild_drift/severe_drift 或短期 mild）；
-   - 计算新的目标超参并与当前值平滑插值，得到新的 `(alpha, lr, lambda_u, tau)`；
-   - 在训练循环中使用新的 `lr` 更新优化器，并将新的超参与 regime 写入日志。
-6. 日志中同时记录：
+   - 根据预设选择监控 `error_rate` / `divergence` 等；
+   - 如果某条检测器触发，返回 `drift_flag=True` 与当前批次的 `monitor_severity`。
+5. `SeverityCalibrator` 更新基线，并在 `drift_flag=1` 时输出 `drift_severity_raw`/`drift_severity`。
+6. 调度：
+   - baseline：`update_hparams(scheduler_state, current_hparams, drift_flag, monitor_severity)`；
+   - severity-aware：`update_hparams_with_severity(..., severity_norm=drift_severity)`，在检测到漂移时按严重度进一步缩放 `(alpha, lr, lambda_u, tau)`。
+7. 日志中同时记录：
    - 漂移信号：`student_error_rate`, `teacher_entropy`, `divergence_js`；
-   - 检测输出：`drift_flag`, `drift_severity`, `regime`；
+   - 检测输出：`drift_flag`, `monitor_severity`, `drift_severity_raw`, `drift_severity`, `regime`；
    - 调度结果：`alpha`, `lr`, `lambda_u`, `tau`。
 
 这使得后续的 offline/online 评估脚本可以直接基于日志中的 `sample_idx`、`drift_flag` 与 meta 中的真值位置计算 MDR/MTD/MTFA/MTR，并可用 `monitor_preset` 快速切换不同检测配置。

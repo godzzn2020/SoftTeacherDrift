@@ -17,7 +17,14 @@ from torch import Tensor
 from drift.detectors import DriftMonitor
 from drift.signals import compute_signals
 from models.teacher_student import LossOutputs, TeacherStudentModel
-from scheduler.hparam_scheduler import HParams, SchedulerState, update_hparams
+from scheduler.hparam_scheduler import (
+    HParams,
+    SchedulerState,
+    SeveritySchedulerConfig,
+    update_hparams,
+    update_hparams_with_severity,
+)
+from soft_drift.severity import SeverityCalibrator
 
 
 @dataclass
@@ -31,6 +38,12 @@ class TrainingConfig:
     dataset_name: str = "unknown"
     model_variant: str = "ts_drift_adapt"
     seed: int = 0
+    use_severity_scheduler: bool = False
+    severity_ema_momentum: float = 0.99
+    severity_eps: float = 1e-6
+    severity_norm_low: float = 0.0
+    severity_norm_high: float = 2.0
+    severity_scheduler_config: Optional[SeveritySchedulerConfig] = None
 
 
 class FeatureVectorizer:
@@ -111,6 +124,15 @@ def run_training_loop(
     logs: List[Dict[str, Any]] = []
     seen_samples = 0
     sample_idx = -1
+    severity_calibrator: Optional[SeverityCalibrator] = None
+    severity_scheduler_cfg = config.severity_scheduler_config or SeveritySchedulerConfig()
+    if config.use_severity_scheduler:
+        severity_calibrator = SeverityCalibrator(
+            ema_momentum=config.severity_ema_momentum,
+            eps=config.severity_eps,
+            severity_low=config.severity_norm_low,
+            severity_high=config.severity_norm_high,
+        )
     for step, batch in enumerate(batch_iter, start=1):
         if step > config.n_steps:
             break
@@ -145,10 +167,35 @@ def run_training_loop(
         model.update_teacher(current_hparams.alpha)
 
         stats = _collect_statistics(losses, y_labeled_np, y_unlabeled_np)
-        drift_flag, severity = drift_monitor.update(stats["signals"], step)
-        current_hparams, regime = update_hparams(
-            scheduler_state, current_hparams, drift_flag, severity
-        )
+        signals = stats["signals"]
+        if severity_calibrator:
+            severity_calibrator.update_baselines(
+                signals["error_rate"],
+                signals["divergence"],
+                signals["teacher_entropy"],
+            )
+        drift_flag, monitor_severity = drift_monitor.update(signals, step)
+        severity_raw = 0.0
+        severity_norm = 0.0
+        if severity_calibrator and drift_flag:
+            severity_raw, severity_norm = severity_calibrator.compute_severity(
+                signals["error_rate"],
+                signals["divergence"],
+                signals["teacher_entropy"],
+            )
+        if config.use_severity_scheduler:
+            current_hparams, regime = update_hparams_with_severity(
+                scheduler_state,
+                current_hparams,
+                drift_flag,
+                monitor_severity,
+                severity_norm,
+                severity_scheduler_cfg,
+            )
+        else:
+            current_hparams, regime = update_hparams(
+                scheduler_state, current_hparams, drift_flag, monitor_severity
+            )
         _set_optimizer_lr(optimizer, current_hparams.lr)
 
         acc_value, kappa_value = _update_metrics(
@@ -170,11 +217,13 @@ def run_training_loop(
                 "seed": config.seed,
                 "metric_accuracy": acc_value,
                 "metric_kappa": kappa_value,
-                "student_error_rate": stats["signals"]["error_rate"],
-                "teacher_entropy": stats["signals"]["teacher_entropy"],
-                "divergence_js": stats["signals"]["divergence"],
+                "student_error_rate": signals["error_rate"],
+                "teacher_entropy": signals["teacher_entropy"],
+                "divergence_js": signals["divergence"],
                 "drift_flag": int(drift_flag),
-                "drift_severity": severity,
+                "monitor_severity": monitor_severity,
+                "drift_severity_raw": severity_raw if drift_flag else 0.0,
+                "drift_severity": severity_norm if drift_flag else 0.0,
                 "regime": regime,
                 "alpha": current_hparams.alpha,
                 "lr": current_hparams.lr,

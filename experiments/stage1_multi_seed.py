@@ -34,7 +34,7 @@ from experiments.first_stage_experiments import (
 
 
 DEFAULT_DATASETS = ["sea_abrupt4", "sine_abrupt4", "stagger_abrupt3"]
-DEFAULT_MODELS = ["baseline_student", "mean_teacher", "ts_drift_adapt"]
+DEFAULT_MODELS = ["baseline_student", "mean_teacher", "ts_drift_adapt", "ts_drift_adapt_severity"]
 DEFAULT_SEEDS = [1, 2, 3, 4, 5]
 
 

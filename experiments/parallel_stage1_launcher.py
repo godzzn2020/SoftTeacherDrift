@@ -119,7 +119,12 @@ def select_configs(
 
 
 def select_models(model_filters: Optional[List[str]]) -> List[str]:
-    available_models = ["baseline_student", "mean_teacher", "ts_drift_adapt"]
+    available_models = [
+        "baseline_student",
+        "mean_teacher",
+        "ts_drift_adapt",
+        "ts_drift_adapt_severity",
+    ]
     if not model_filters:
         return available_models
     target = [m.strip() for m in model_filters if m.strip()]
