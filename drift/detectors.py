@@ -40,28 +40,74 @@ def _ph_detector(**kwargs: float) -> drift.PageHinkley:
     return drift.PageHinkley(**kwargs)
 
 
-def _build_error_ph_meta() -> Dict[str, drift.base.DriftDetector]:
+def _error_signal_detector() -> Dict[str, drift.base.DriftDetector]:
     return {
         "error_rate": _ph_detector(delta=0.005, alpha=0.15, threshold=0.2, min_instances=25),
     }
 
 
-def _build_divergence_ph_meta() -> Dict[str, drift.base.DriftDetector]:
+def _entropy_signal_detector() -> Dict[str, drift.base.DriftDetector]:
+    return {
+        "teacher_entropy": _ph_detector(delta=0.01, alpha=0.3, threshold=0.5, min_instances=20),
+    }
+
+
+def _divergence_signal_detector() -> Dict[str, drift.base.DriftDetector]:
     return {
         "divergence": _ph_detector(delta=0.005, alpha=0.1, threshold=0.05, min_instances=30),
     }
 
 
-def _build_error_divergence_meta() -> Dict[str, drift.base.DriftDetector]:
-    detectors = _build_error_ph_meta()
-    detectors.update(_build_divergence_ph_meta())
+def _merge_detectors(*builders: Callable[[], Dict[str, drift.base.DriftDetector]]) -> Dict[str, drift.base.DriftDetector]:
+    detectors: Dict[str, drift.base.DriftDetector] = {}
+    for builder in builders:
+        detectors.update(builder())
     return detectors
 
 
+def _build_error_only_ph_meta() -> Dict[str, drift.base.DriftDetector]:
+    return _error_signal_detector()
+
+
+def _build_entropy_only_ph_meta() -> Dict[str, drift.base.DriftDetector]:
+    return _entropy_signal_detector()
+
+
+def _build_divergence_only_ph_meta() -> Dict[str, drift.base.DriftDetector]:
+    return _divergence_signal_detector()
+
+
+def _build_error_entropy_ph_meta() -> Dict[str, drift.base.DriftDetector]:
+    return _merge_detectors(_error_signal_detector, _entropy_signal_detector)
+
+
+def _build_error_divergence_ph_meta() -> Dict[str, drift.base.DriftDetector]:
+    return _merge_detectors(_error_signal_detector, _divergence_signal_detector)
+
+
+def _build_entropy_divergence_ph_meta() -> Dict[str, drift.base.DriftDetector]:
+    return _merge_detectors(_entropy_signal_detector, _divergence_signal_detector)
+
+
+def _build_all_signals_ph_meta() -> Dict[str, drift.base.DriftDetector]:
+    return _merge_detectors(
+        _error_signal_detector,
+        _entropy_signal_detector,
+        _divergence_signal_detector,
+    )
+
+
 MONITOR_PRESETS: Dict[str, Callable[[], Dict[str, drift.base.DriftDetector]]] = {
-    "error_ph_meta": _build_error_ph_meta,
-    "divergence_ph_meta": _build_divergence_ph_meta,
-    "error_divergence_ph_meta": _build_error_divergence_meta,
+    "error_only_ph_meta": _build_error_only_ph_meta,
+    "entropy_only_ph_meta": _build_entropy_only_ph_meta,
+    "divergence_only_ph_meta": _build_divergence_only_ph_meta,
+    "error_entropy_ph_meta": _build_error_entropy_ph_meta,
+    "error_divergence_ph_meta": _build_error_divergence_ph_meta,
+    "entropy_divergence_ph_meta": _build_entropy_divergence_ph_meta,
+    "all_signals_ph_meta": _build_all_signals_ph_meta,
+    # 兼容旧名称
+    "error_ph_meta": _build_error_only_ph_meta,
+    "divergence_ph_meta": _build_divergence_only_ph_meta,
 }
 
 SIGNAL_ALIASES: Dict[str, Tuple[str, ...]] = {

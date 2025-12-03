@@ -65,6 +65,76 @@ python evaluation/phaseB_signal_drift_analysis_real.py \
   --model_variant_pattern ts_drift_adapt
 ```
 
+### evaluation/phaseB_detection_ablation_synth.py
+
+- 作用：针对合成流日志，离线重放 `DriftMonitor`，对 7 种 PageHinkley 信号组合（error / entropy / divergence 的 1/2/3 组合）进行检测指标消融，输出 run-level 和 dataset+preset 汇总的 MDR/MTD/MTFA/MTR。
+- 核心参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--logs_root` / `--synthetic_root` | 日志与 meta 根目录 | `logs` / `data/synthetic` |
+| `--datasets` | 合成数据集列表（逗号分隔） | **必填** |
+| `--model_variant_pattern` | 只评估名称包含该子串的 model_variant | 空 |
+| `--presets` | 逗号分隔的 preset 名列表 | 7 种组合全覆盖 |
+| `--match_tolerance` | 真漂移与检测匹配的容差（样本数） | `500` |
+| `--min_separation` | 去重检测事件的最小间隔（样本数） | `200` |
+| `--output_dir` | 结果输出目录 | `results/phaseB_ablation_synth` |
+
+- 示例：
+
+```bash
+python evaluation/phaseB_detection_ablation_synth.py \
+  --datasets sea_abrupt4,sine_abrupt4,stagger_abrupt3 \
+  --model_variant_pattern ts_drift_adapt \
+  --presets error_only_ph_meta,entropy_only_ph_meta,divergence_only_ph_meta,error_entropy_ph_meta,error_divergence_ph_meta,entropy_divergence_ph_meta,all_signals_ph_meta \
+  --match_tolerance 500 \
+  --min_separation 200
+```
+
+### evaluation/phaseC_severity_analysis_synth.py
+
+- 作用：在合成流上针对每个真实漂移点计算三种信号（error / teacher_entropy / divergence_js）以及 accuracy 的漂移前后变化，输出 per-drift 统计与 dataset 级别的信号变化 vs 性能掉幅相关性，用于定义“漂移严重度”指标。
+- 核心参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--logs_root` / `--synthetic_root` | 日志与 meta 根目录 | `logs` / `data/synthetic` |
+| `--datasets` | 合成数据集列表（逗号分隔） | **必填** |
+| `--model_variant_pattern` | 只分析名称包含该子串的 model_variant | 空 |
+| `--window` | 漂移前后窗口大小（样本数） | `500` |
+| `--output_dir` | 结果输出目录 | `results/phaseC_severity_analysis` |
+
+- 示例：
+
+```bash
+python evaluation/phaseC_severity_analysis_synth.py \
+  --datasets sea_abrupt4,sine_abrupt4,stagger_abrupt3 \
+  --model_variant_pattern ts_drift_adapt \
+  --window 500
+```
+
+### evaluation/phaseC_severity_score_fit.py
+
+- 作用：基于 Phase C1 生成的 `per_drift_stats.csv`，构造三信号联合的严重度得分（手工权重版 + 线性回归版），并评估它们与 `drop_min_acc` 的相关性，为后续调度器使用统一 severity score 做准备。
+- 核心参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--per_drift_path` | Phase C1 输出的 per-drift 统计路径 | `results/phaseC_severity_analysis/per_drift_stats.csv` |
+| `--output_dir` | 保存 severity 表与相关性汇总的目录 | `results/phaseC_severity_score` |
+| `--min_drop` | 拟合/标准化使用的最小 `drop_min_acc`（过滤极小漂移） | `0.0` |
+| `--standardize / --no-standardize` | 是否对特征做 z-score（默认开启，可用 `--no-standardize` 关闭） | `True` |
+
+- 示例：
+
+```bash
+python evaluation/phaseC_severity_score_fit.py \
+  --per_drift_path results/phaseC_severity_analysis/per_drift_stats.csv \
+  --output_dir results/phaseC_severity_score \
+  --min_drop 0.0 \
+  --standardize
+```
+
 ### experiments/offline_detector_sweep.py
 
 - 作用：在已有训练日志和 meta.json 上离线网格搜索 detector 组合，输出 MDR/MTD/MTFA/MTR、CSV 及 per-dataset Markdown。

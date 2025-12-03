@@ -28,6 +28,9 @@
 - `evaluation/phaseB_signal_drift_analysis_real.py`：
   - 针对真实流日志的数据探索脚本，会绘制三种信号与实际检测事件（`drift_flag==1`）的时间曲线，并输出每个 run 的检测次数、平均严重度等摘要。
   - 适用于 Electricity/NOAA/Airlines/INSECTS 等无真值漂移的场景，观察 detector 行为是否与业务直觉一致。
+- `evaluation/phaseB_detection_ablation_synth.py`：
+  - 离线重放 `DriftMonitor`，在合成流上比较 error/entropy/divergence 信号的 7 种 PageHinkley 组合的 MDR/MTD/MTFA/MTR，并输出 run 级与 dataset+preset 级别的统计结果。
+  - 可用于分析信号组合的优劣，为线上选择 `monitor_preset` 提供依据。
 - `experiments/stage1_multi_seed.py`：
   - 为多数据集 × 多模型 × 多随机种子循环调用 `run_experiment.py`，默认 datasets=`sea_abrupt4,sine_abrupt4,stagger_abrupt3`、models=`baseline_student,mean_teacher,ts_drift_adapt`、seeds=`1 2 3 4 5`，并统一透传 `--monitor_preset`（默认 `error_ph_meta`）。
   - 执行前会自动调用 `data.streams.generate_default_abrupt_synth_datasets`，确保所需的合成流 parquet/meta 在 `data/synthetic/` 下生成（覆盖所有传入 seed）。

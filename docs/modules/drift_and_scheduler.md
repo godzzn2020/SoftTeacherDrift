@@ -24,6 +24,20 @@
     - 将发生漂移的 `step` 追加到 `history`，更新 `last_drift_step`。
 - 检测值应避开 `NaN` / 空批次（训练循环已做防护）。
 
+### PageHinkley 预设（信号组合）
+
+| preset 名称 | 监控信号 | PageHinkley 参数 |
+|-------------|-----------|------------------|
+| `error_only_ph_meta` / `error_ph_meta` | `student_error_rate` | `delta=0.005, alpha=0.15, threshold=0.2, min_instances=25` |
+| `entropy_only_ph_meta` | `teacher_entropy` | `delta=0.01, alpha=0.3, threshold=0.5, min_instances=20` |
+| `divergence_only_ph_meta` / `divergence_ph_meta` | `divergence_js` | `delta=0.005, alpha=0.1, threshold=0.05, min_instances=30` |
+| `error_entropy_ph_meta` | `student_error_rate + teacher_entropy` | 同上两种信号各自使用对应参数 |
+| `error_divergence_ph_meta` | `student_error_rate + divergence_js` | 同上两种信号各自使用对应参数 |
+| `entropy_divergence_ph_meta` | `teacher_entropy + divergence_js` | 同上两种信号各自使用对应参数 |
+| `all_signals_ph_meta` | `student_error_rate + teacher_entropy + divergence_js` | 三种信号分别使用各自的参数 |
+
+> 说明：多个信号组合时，会为每个信号创建独立的 PageHinkley 实例，只要任一信号触发就视为漂移。旧名称 `error_ph_meta` 与 `divergence_ph_meta` 仍保持兼容，等价于单信号版本。
+
 ## 超参调度（Scheduler）
 
 - `scheduler/hparam_scheduler.py` 维护 `SchedulerState` 与 `HParams`：

@@ -58,3 +58,9 @@
 
 2025-11-20  [assistant]  修改 summary：新增 `evaluation/phaseB_signal_drift_analysis_real.py`，用于真实数据集的信号/检测可视化，并在文档登记该脚本  
 影响文件：evaluation/phaseB_signal_drift_analysis_real.py, docs/modules/test_scripts.md, docs/modules/experiments_stage1.md
+
+2025-11-20  [assistant]  修改 summary：新增 Phase C2 严重度拟合脚本 `evaluation/phaseC_severity_score_fit.py`，并在测试脚本文档记录 CLI，用于统一信号严重度指标  
+影响文件：evaluation/phaseC_severity_score_fit.py, docs/modules/test_scripts.md, changelog/CHANGELOG.md
+
+2025-11-20  [assistant]  修改 summary：扩展 `drift/detectors.py` 的 PageHinkley 预设为 error/entropy/divergence 的 7 种组合，并新增合成流检测消融脚本 `evaluation/phaseB_detection_ablation_synth.py`  
+影响文件：drift/detectors.py, evaluation/phaseB_detection_ablation_synth.py, docs/modules/drift_and_scheduler.md, docs/modules/test_scripts.md, docs/modules/experiments_stage1.md
