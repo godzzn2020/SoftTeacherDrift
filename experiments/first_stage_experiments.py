@@ -26,7 +26,7 @@ from training.loop import FeatureVectorizer, LabelEncoder, TrainingConfig, run_t
 
 
 def _use_severity_scheduler(model_variant: str) -> bool:
-    return model_variant.endswith("_severity")
+    return "_severity" in model_variant
 
 
 @dataclass
@@ -51,6 +51,7 @@ class ExperimentConfig:
     stream_kwargs: Dict[str, Any] = field(default_factory=dict)
     log_path: Optional[str] = None
     monitor_preset: str = "none"
+    severity_scheduler_scale: float = 1.0
 
 
 def run_experiment(config: ExperimentConfig, device: str = "cpu") -> pd.DataFrame:
@@ -106,6 +107,7 @@ def run_experiment(config: ExperimentConfig, device: str = "cpu") -> pd.DataFram
         model_variant=config.model_variant,
         seed=config.seed,
         use_severity_scheduler=_use_severity_scheduler(config.model_variant),
+        severity_scheduler_scale=config.severity_scheduler_scale,
     )
     logs_df = run_training_loop(
         batch_iter=batch_iter,

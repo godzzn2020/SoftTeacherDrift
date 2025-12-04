@@ -74,6 +74,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--log_path", type=str, default=None)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--severity_scheduler_scale",
+        type=float,
+        default=1.0,
+        help="全局 severity-aware 调度缩放，0 关闭，1 默认，>1 更激进",
+    )
     return parser.parse_args()
 
 
@@ -97,6 +103,7 @@ def main() -> None:
         dropout=args.dropout,
         log_path=args.log_path,
         monitor_preset=args.monitor_preset,
+        severity_scheduler_scale=args.severity_scheduler_scale,
     )
     logs = run_ts_experiment(config=config, device=args.device)
     if logs.empty:

@@ -90,6 +90,12 @@ def parse_args() -> argparse.Namespace:
         default=2.0,
         help="轮询任务状态的间隔（秒）",
     )
+    parser.add_argument(
+        "--severity_scheduler_scale",
+        type=float,
+        default=1.0,
+        help="severity-aware 调度缩放系数（仅 *_severity 变体生效）",
+    )
     return parser.parse_args()
 
 
@@ -128,7 +134,11 @@ def select_models(model_filters: Optional[List[str]]) -> List[str]:
     if not model_filters:
         return available_models
     target = [m.strip() for m in model_filters if m.strip()]
-    invalid = [m for m in target if m not in available_models]
+    invalid = [
+        m
+        for m in target
+        if m not in available_models and "ts_drift_adapt_severity" not in m
+    ]
     if invalid:
         raise ValueError(f"不支持的模型：{', '.join(invalid)}")
     return target
@@ -142,6 +152,7 @@ def build_command(
     monitor_preset: str,
     python_bin: str,
     device: str,
+    severity_scheduler_scale: float,
 ) -> List[str]:
     hidden_dims = ",".join(str(d) for d in cfg.hidden_dims)
     cmd = [
@@ -184,6 +195,7 @@ def build_command(
         cmd.extend(["--csv_path", cfg.csv_path])
     if cfg.label_col:
         cmd.extend(["--label_col", cfg.label_col])
+    cmd.extend(["--severity_scheduler_scale", str(severity_scheduler_scale)])
     return cmd
 
 
@@ -194,6 +206,7 @@ def create_tasks(
     monitor_preset: str,
     python_bin: str,
     device: str,
+    severity_scheduler_scale: float,
 ) -> List[Task]:
     tasks: List[Task] = []
     for cfg in datasets:
@@ -208,6 +221,7 @@ def create_tasks(
                     monitor_preset,
                     python_bin,
                     device,
+                    severity_scheduler_scale,
                 )
                 label = f"{cfg.dataset_name}__{model_variant}__seed{seed}"
                 tasks.append(Task(label=label, cmd=cmd, env={}))
@@ -295,6 +309,7 @@ def main() -> None:
         monitor_preset=args.monitor_preset,
         python_bin=args.python_bin,
         device=args.device,
+        severity_scheduler_scale=args.severity_scheduler_scale,
     )
     print(f"共生成 {len(tasks)} 个任务，将使用 GPU 列表：{gpus or ['cpu']}（每卡 {args.max_jobs_per_gpu} 个并发）")
     run_tasks(tasks, gpus, args.max_jobs_per_gpu, args.sleep_interval)

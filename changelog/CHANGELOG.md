@@ -62,8 +62,14 @@
 2025-11-20  [assistant]  修改 summary：新增 Phase C2 严重度拟合脚本 `evaluation/phaseC_severity_score_fit.py`，并在测试脚本文档记录 CLI，用于统一信号严重度指标  
 影响文件：evaluation/phaseC_severity_score_fit.py, docs/modules/test_scripts.md, changelog/CHANGELOG.md
 
+2025-11-20  [assistant]  修改 summary：为 Phase C3 新增合成/真实调度实验入口与评估脚本（`scripts/run_c3_synth_severity.sh`, `evaluation/phaseC_scheduler_ablation_real.py`），并扩展 `experiments/run_real_adaptive.py` 支持多模型运行  
+影响文件：scripts/run_c3_synth_severity.sh, evaluation/phaseC_scheduler_ablation_real.py, experiments/run_real_adaptive.py, docs/modules/test_scripts.md
+
 2025-11-20  [assistant]  修改 summary：引入 `SeverityCalibrator` + severity-aware scheduler（`ts_drift_adapt_severity`），训练日志新增 `monitor_severity`/`drift_severity_raw`/`drift_severity` 字段，并提供 Phase C3 调度消融脚本  
 影响文件：soft_drift/severity.py, scheduler/hparam_scheduler.py, training/loop.py, experiments/first_stage_experiments.py, experiments/stage1_multi_seed.py, experiments/parallel_stage1_launcher.py, evaluation/phaseB_signal_drift_analysis_real.py, evaluation/phaseC_scheduler_ablation_synth.py, docs/PROJECT_OVERVIEW.md, docs/modules/drift_and_scheduler.md, docs/modules/training_loop.md, docs/modules/experiments_stage1.md, docs/modules/test_scripts.md
+
+2025-11-20  [assistant]  修改 summary：新增 `scripts/run_c3_synth_severity.sh`（Phase C3 多卡脚本）、`evaluation/phaseC_scheduler_ablation_real.py`，并扩展 `experiments/run_real_adaptive.py` 支持 `ts_drift_adapt_severity`  
+影响文件：scripts/run_c3_synth_severity.sh, evaluation/phaseC_scheduler_ablation_real.py, experiments/run_real_adaptive.py, docs/modules/test_scripts.md
 
 2025-11-20  [assistant]  修改 summary：扩展 `drift/detectors.py` 的 PageHinkley 预设为 error/entropy/divergence 的 7 种组合，并新增合成流检测消融脚本 `evaluation/phaseB_detection_ablation_synth.py`  
 影响文件：drift/detectors.py, evaluation/phaseB_detection_ablation_synth.py, docs/modules/drift_and_scheduler.md, docs/modules/test_scripts.md, docs/modules/experiments_stage1.md

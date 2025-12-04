@@ -61,12 +61,16 @@
     - **mild_drift**：检测器报警且严重度不大 → 略降 `alpha`、略升 `lr`、适度降低 `lambda_u`、适度降低 `tau`。
     - **severe_drift**：严重漂移 → 显著降低 `alpha`、提升 `lr`、减小 `lambda_u`、下调 `tau`。
   - `update_hparams` 输出新的超参并返回当前 regime，训练循环据此写入日志与调节优化器。
-  - `update_hparams_with_severity`：在基础调度的结果上，再按照 `drift_severity (s_norm)` 缩放：
+- `update_hparams_with_severity`：在基础调度的结果上，再按照 `drift_severity (s_norm)` 缩放：
     - `alpha *= (1 - alpha_scale * s)`（默认 `alpha_scale=0.3`），严重漂移时更快“忘掉”旧教师；
     - `lambda_u *= (1 - lambda_u_scale * s)`（默认 `0.7`），抑制伪标签误差传播；
     - `tau += tau_delta * s`（默认 `0.15`），降低伪标签置信门槛；
     - `lr *= (1 + lr_scale * s)`（默认 `0.5`），加速恢复；
-    - 缩放系数由 `SeveritySchedulerConfig` 管理，可在不同实验下调参。
+    - 缩放系数由 `SeveritySchedulerConfig` 管理，可在不同实验下调参；
+    - 额外的 `severity_scale`（默认为 `1.0`）提供整体验证强度的“主旋钮”，训练脚本可通过 `--severity_scheduler_scale` 调整：
+        - `1.0` → 维持当前强度；
+        - `0.0` → 完全退化为 baseline，仅保留漂移触发但不按严重度缩放；
+        - `>1.0` → 放大严重度响应，使 `alpha/lambda_u` 更快下降，`lr/tau` 更快上升。
 
 ## 关键代码片段
 

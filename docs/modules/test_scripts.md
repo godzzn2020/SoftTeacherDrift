@@ -161,6 +161,61 @@ python evaluation/phaseC_scheduler_ablation_synth.py \
   --final_window 200
 ```
 
+### evaluation/phaseC_scheduler_ablation_real.py
+
+- 作用：在真实流日志上比较 baseline 与 severity-aware scheduler 的 `mean_acc` / `final_acc` / `drop_min_acc`，漂移位置来源于检测事件（去重后）。
+- 核心参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--logs_root` | 日志根目录 | `logs` |
+| `--datasets` | 真实数据集列表 | `Electricity,NOAA,INSECTS_abrupt_balanced,Airlines` |
+| `--model_variants` | 模型列表 | `ts_drift_adapt,ts_drift_adapt_severity` |
+| `--seeds` | 随机种子 | `1,2,3` |
+| `--window` | 漂移后窗口（样本尺度） | `500` |
+| `--final_window` | final accuracy 的尾部窗口（行数） | `200` |
+| `--min_separation` | 合并检测事件的最小间隔 | `200` |
+| `--output_dir` | 结果输出目录 | `results/phaseC_scheduler_ablation_real` |
+
+- 示例：
+
+```bash
+python evaluation/phaseC_scheduler_ablation_real.py \
+  --datasets Electricity,NOAA,INSECTS_abrupt_balanced,Airlines \
+  --model_variants ts_drift_adapt,ts_drift_adapt_severity \
+  --seeds 1,2,3 \
+  --window 500 \
+  --final_window 200 \
+  --min_separation 200
+```
+
+### evaluation/phaseC_scheduler_ablation_real.py
+
+- 作用：读取真实数据集日志（Electricity/NOAA/INSECTS_abrupt_balanced/Airlines 等），以 `drift_flag==1` 的检测事件为锚点，比较 baseline (`ts_drift_adapt`) 与 severity-aware (`ts_drift_adapt_severity`) 的 `mean_acc`、`final_acc`、`mean/max drop_min_acc`。
+- 核心参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--logs_root` | 日志根目录 | `logs` |
+| `--datasets` | 数据集目录列表（逗号分隔） | **必填** |
+| `--model_variants` | 需要比较的模型列表 | `ts_drift_adapt,ts_drift_adapt_severity` |
+| `--seeds` | 随机种子列表（逗号或空格分隔） | `1,2,3` |
+| `--detection_window` | 检测事件前后窗口大小（样本数） | `500` |
+| `--min_separation` | 合并检测事件的最小间隔（样本数） | `200` |
+| `--final_window` | final accuracy 的尾部窗口（步数/批次数） | `200` |
+| `--output_dir` | 结果输出目录 | `results/phaseC_scheduler_ablation_real` |
+
+- 示例：
+
+```bash
+python evaluation/phaseC_scheduler_ablation_real.py \
+  --datasets Electricity,NOAA,INSECTS_abrupt_balanced,Airlines \
+  --seeds 1,2,3 \
+  --model_variants ts_drift_adapt,ts_drift_adapt_severity \
+  --detection_window 500 \
+  --final_window 200
+```
+
 ### experiments/offline_detector_sweep.py
 
 - 作用：在已有训练日志和 meta.json 上离线网格搜索 detector 组合，输出 MDR/MTD/MTFA/MTR、CSV 及 per-dataset Markdown。
@@ -313,12 +368,12 @@ python experiments/summarize_online_results.py \
 
 ### experiments/stage1_multi_seed.py
 
-- 作用：批量运行 Stage-1 多 seed 实验（默认覆盖 `sea_abrupt4,sine_abrupt4,stagger_abrupt3` × `baseline_student,mean_teacher,ts_drift_adapt` × `seed=1..5`），并将结果聚合成 Raw/Summary CSV 与 per-dataset Markdown 表。
+- 作用：批量运行 Stage-1 多 seed 实验（默认覆盖 `sea_abrupt4,sine_abrupt4,stagger_abrupt3` × `baseline_student,mean_teacher,ts_drift_adapt,ts_drift_adapt_severity` × `seed=1..5`），并将结果聚合成 Raw/Summary CSV 与 per-dataset Markdown 表。
 - 核心参数：
 
 | 参数 | 说明 | 默认 |
 | --- | --- | --- |
-| `--datasets` / `--models` | 逗号分隔列表 | `sea_abrupt4,sine_abrupt4,stagger_abrupt3` / `baseline_student,mean_teacher,ts_drift_adapt` |
+| `--datasets` / `--models` | 逗号分隔列表 | `sea_abrupt4,sine_abrupt4,stagger_abrupt3` / `baseline_student,mean_teacher,ts_drift_adapt,ts_drift_adapt_severity` |
 | `--seeds` | 多个 seed | `1 2 3 4 5` |
 | `--monitor_preset` | 统一传给 run_experiment | `error_ph_meta` |
 | `--device` | run_experiment 的 --device | `cuda` |
@@ -331,22 +386,50 @@ python experiments/summarize_online_results.py \
 ```bash
 python experiments/stage1_multi_seed.py \
   --datasets sea_abrupt4,sine_abrupt4,stagger_abrupt3 \
-  --models baseline_student,mean_teacher,ts_drift_adapt \
+  --models baseline_student,mean_teacher,ts_drift_adapt,ts_drift_adapt_severity \
   --seeds 1 2 3 4 5 \
   --monitor_preset error_ph_meta \
   --gpus 0,1 \
   --max_jobs_per_gpu 3
+
+### scripts/run_c3_synth_severity.sh
+
+- 作用：Phase C3 合成流 severity 调度实验的快捷脚本，串行提交 baseline（`ts_drift_adapt`）与 severity-aware（`ts_drift_adapt_severity`）两组多 seed 任务，默认配置 `datasets=sea_abrupt4,sine_abrupt4,stagger_abrupt3`、`seeds=1..5`、`gpus=0,1`、`max_jobs_per_gpu=2`、`monitor_preset=error_divergence_ph_meta`。
+- 使用前可根据机器资源修改脚本顶部的变量，然后执行：
+
+```bash
+bash scripts/run_c3_synth_severity.sh
+```
+
+- 若想手动调用同样的命令，可运行：
+
+```bash
+python experiments/stage1_multi_seed.py \
+  --datasets sea_abrupt4,sine_abrupt4,stagger_abrupt3 \
+  --models ts_drift_adapt \
+  --seeds 1 2 3 4 5 \
+  --monitor_preset error_divergence_ph_meta \
+  --gpus 0,1 --max_jobs_per_gpu 2
+
+python experiments/stage1_multi_seed.py \
+  --datasets sea_abrupt4,sine_abrupt4,stagger_abrupt3 \
+  --models ts_drift_adapt_severity \
+  --seeds 1 2 3 4 5 \
+  --monitor_preset error_divergence_ph_meta \
+  --gpus 0,1 --max_jobs_per_gpu 2
+```
 ```
 
 ### experiments/run_real_adaptive.py
 
-- 作用：在指定的真实数据集（默认 `datasets/real/Electricity.csv`, `NOAA.csv`, `INSECTS_abrupt_balanced.csv`, `Airlines.csv`）上仅运行 `ts_drift_adapt` 模型，循环多个 seed，并把日志写入 `logs/{dataset}/{dataset}__ts_drift_adapt__seed{seed}.csv`。
+- 作用：在指定的真实数据集（默认 `datasets/real/Electricity.csv`, `NOAA.csv`, `INSECTS_abrupt_balanced.csv`, `Airlines.csv`）上批量运行 `ts_drift_adapt` / `ts_drift_adapt_severity` 等模型，循环多个 seed，并把日志写入 `logs/{dataset}/{dataset}__{model_variant}__seed{seed}.csv`。
 - 核心参数：
 
 | 参数 | 说明 | 默认 |
 | --- | --- | --- |
 | `--datasets` | 逗号分隔列表（需在脚本内置的 `REAL_DATASETS` 中） | `Electricity,NOAA,INSECTS_abrupt_balanced,Airlines` |
 | `--seeds` | 多个 seed | `1 2 3` |
+| `--model_variants` | 需要运行的模型列表 | `ts_drift_adapt` |
 | `--monitor_preset` | 传给 run_experiment 的漂移检测配置 | `error_divergence_ph_meta` |
 | `--device` | 训练设备 | `cuda` |
 | `--logs_root` | 日志输出根目录 | `logs` |
@@ -359,9 +442,25 @@ python experiments/stage1_multi_seed.py \
 python experiments/run_real_adaptive.py \
   --datasets Electricity,NOAA,INSECTS_abrupt_balanced,Airlines \
   --seeds 1 2 3 \
+  --model_variants ts_drift_adapt,ts_drift_adapt_severity \
   --monitor_preset error_divergence_ph_meta \
   --device cuda
 ```
+
+### scripts/run_c3_synth_severity.sh
+
+- 作用：Phase C3 合成流 severity 调度实验的多卡批处理脚本，顺序调用 `experiments/stage1_multi_seed.py` 运行 baseline (`ts_drift_adapt`) 与 severity-aware (`ts_drift_adapt_severity`)。
+- 关键变量：
+
+| 变量 | 说明 | 默认 |
+| --- | --- | --- |
+| `DATASETS` | 逗号分隔数据集列表 | `sea_abrupt4,sine_abrupt4,stagger_abrupt3` |
+| `SEEDS_BASELINE` / `SEEDS_SEVERITY` | baseline/严重度版本的 seed 列表 | `1 2 3 4 5` |
+| `GPUS` | 多卡列表（传入 `--gpus`） | `0,1` |
+| `MAX_JOBS` | 单卡并行任务数量 | `2` |
+| `MONITOR` | 传给 CLI 的 `--monitor_preset` | `error_divergence_ph_meta` |
+
+- 使用方式：根据实际 GPU/seed 修改脚本内变量后执行 `bash scripts/run_c3_synth_severity.sh`。脚本会依次运行 baseline 与 severity 版本，日志写入 `logs/{dataset}/...`.
 
 ## 维护规则
 

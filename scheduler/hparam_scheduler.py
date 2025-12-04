@@ -71,6 +71,7 @@ class SeveritySchedulerConfig:
     lambda_u_scale: float = 0.7
     tau_delta: float = 0.15
     lr_scale: float = 0.5
+    severity_scale: float = 1.0
 
 
 def update_hparams_with_severity(
@@ -91,11 +92,17 @@ def update_hparams_with_severity(
     if not drift_flag or severity_norm <= 0.0:
         return base_hparams, regime
     cfg = config or SeveritySchedulerConfig()
+    scale = max(0.0, cfg.severity_scale)
+    if scale <= 0.0:
+        return base_hparams, regime
     k = max(0.0, min(1.0, severity_norm))
-    alpha = max(0.0, base_hparams.alpha * (1.0 - cfg.alpha_scale * k))
-    lr = max(1e-6, base_hparams.lr * (1.0 + cfg.lr_scale * k))
-    lambda_u = max(0.0, base_hparams.lambda_u * (1.0 - cfg.lambda_u_scale * k))
-    tau = min(1.0, max(0.0, base_hparams.tau + cfg.tau_delta * k))
+    s_effective = max(0.0, min(1.0, scale * k))
+    if s_effective <= 0.0:
+        return base_hparams, regime
+    alpha = max(0.0, base_hparams.alpha * (1.0 - cfg.alpha_scale * s_effective))
+    lr = max(1e-6, base_hparams.lr * (1.0 + cfg.lr_scale * s_effective))
+    lambda_u = max(0.0, base_hparams.lambda_u * (1.0 - cfg.lambda_u_scale * s_effective))
+    tau = min(1.0, max(0.0, base_hparams.tau + cfg.tau_delta * s_effective))
     return HParams(alpha=alpha, lr=lr, lambda_u=lambda_u, tau=tau), regime
 
 

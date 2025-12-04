@@ -54,6 +54,7 @@ class Args:
     out_csv_raw: Path
     out_csv_summary: Path
     out_md_dir: Path
+    severity_scheduler_scale: float
 
 
 @dataclass
@@ -118,6 +119,12 @@ def parse_args() -> Args:
     parser.add_argument("--out_csv_raw", type=str, default="results/stage1_multi_seed_raw.csv")
     parser.add_argument("--out_csv_summary", type=str, default="results/stage1_multi_seed_summary.csv")
     parser.add_argument("--out_md_dir", type=str, default="results/stage1_multi_seed_md")
+    parser.add_argument(
+        "--severity_scheduler_scale",
+        type=float,
+        default=1.0,
+        help="severity-aware 调度缩放（仅在 *_severity 变体生效）",
+    )
     ns = parser.parse_args()
     datasets = [item.strip() for item in ns.datasets.split(",") if item.strip()]
     models = [item.strip() for item in ns.models.split(",") if item.strip()]
@@ -142,6 +149,7 @@ def parse_args() -> Args:
         out_csv_raw=Path(ns.out_csv_raw),
         out_csv_summary=Path(ns.out_csv_summary),
         out_md_dir=Path(ns.out_md_dir),
+        severity_scheduler_scale=ns.severity_scheduler_scale,
     )
 
 
@@ -160,6 +168,7 @@ def build_command(
     monitor_preset: str,
     device: str,
     logs_root: Path,
+    severity_scheduler_scale: float,
 ) -> Tuple[str, List[str]]:
     default_log = Path(_default_log_path(cfg.dataset_name, model, seed))
     if logs_root.resolve() != default_log.parent.parent.resolve():
@@ -208,6 +217,7 @@ def build_command(
         cmd.extend(["--csv_path", cfg.csv_path])
     if cfg.label_col:
         cmd.extend(["--label_col", cfg.label_col])
+    cmd.extend(["--severity_scheduler_scale", str(severity_scheduler_scale)])
     return log_path, cmd
 
 
@@ -392,6 +402,7 @@ def main() -> None:
                     args.monitor_preset,
                     args.device,
                     args.logs_root,
+                    args.severity_scheduler_scale,
                 )
                 tasks.append(Task(label=f"{dataset}__{model}__seed{seed}", cmd=cmd, dataset=dataset, model=model, seed=seed))
     run_task_queue(tasks, args.gpus, args.max_jobs_per_gpu, args.sleep_interval)

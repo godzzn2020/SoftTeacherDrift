@@ -1,4 +1,4 @@
-"""批量运行真实数据集的 ts_drift_adapt 实验。"""
+"""批量运行真实数据集的 ts_drift_adapt/ts_drift_adapt_severity 实验。"""
 
 from __future__ import annotations
 
@@ -101,6 +101,12 @@ def parse_args() -> argparse.Namespace:
         help="需要运行的随机种子",
     )
     parser.add_argument(
+        "--model_variants",
+        type=str,
+        default="ts_drift_adapt",
+        help="逗号分隔的模型变体列表（例如 ts_drift_adapt,ts_drift_adapt_severity）",
+    )
+    parser.add_argument(
         "--monitor_preset",
         type=str,
         default="error_divergence_ph_meta",
@@ -109,15 +115,27 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--device", type=str, default="cuda", help="运行设备（传给 run_experiment）")
     parser.add_argument("--logs_root", type=str, default="logs", help="日志输出根目录")
+    parser.add_argument(
+        "--severity_scheduler_scale",
+        type=float,
+        default=1.0,
+        help="severity-aware 调度缩放（仅 *_severity 变体生效）",
+    )
     return parser.parse_args()
+
+
+def parse_model_variants(spec: str) -> List[str]:
+    return [item.strip() for item in spec.split(",") if item.strip()]
 
 
 def build_command(
     cfg: RealDatasetConfig,
+    model_variant: str,
     seed: int,
     log_path: Path,
     monitor_preset: str,
     device: str,
+    severity_scheduler_scale: float,
 ) -> List[str]:
     cmd = [
         sys.executable,
@@ -127,7 +145,7 @@ def build_command(
         "--dataset_name",
         cfg.dataset_name,
         "--model_variant",
-        "ts_drift_adapt",
+        model_variant,
         "--seed",
         str(seed),
         "--monitor_preset",
@@ -155,36 +173,58 @@ def build_command(
     ]
     if cfg.label_col:
         cmd.extend(["--label_col", cfg.label_col])
+    cmd.extend(["--severity_scheduler_scale", str(severity_scheduler_scale)])
     return cmd
 
 
 def run_dataset(
     name: str,
     cfg: RealDatasetConfig,
+    model_variants: List[str],
     seeds: List[int],
     logs_root: Path,
     monitor_preset: str,
     device: str,
+    severity_scheduler_scale: float,
 ) -> None:
     dataset_log_dir = logs_root / cfg.dataset_name
     dataset_log_dir.mkdir(parents=True, exist_ok=True)
-    for seed in seeds:
-        log_path = dataset_log_dir / f"{cfg.dataset_name}__ts_drift_adapt__seed{seed}.csv"
-        cmd = build_command(cfg, seed, log_path, monitor_preset, device)
-        print(f"[run] dataset={cfg.dataset_name} seed={seed} log={log_path}")
-        subprocess.run(cmd, check=True)
+    for variant in model_variants:
+        for seed in seeds:
+            log_path = dataset_log_dir / f"{cfg.dataset_name}__{variant}__seed{seed}.csv"
+            cmd = build_command(
+                cfg,
+                variant,
+                seed,
+                log_path,
+                monitor_preset,
+                device,
+                severity_scheduler_scale,
+            )
+            print(f"[run] dataset={cfg.dataset_name} model={variant} seed={seed} log={log_path}")
+            subprocess.run(cmd, check=True)
 
 
 def main() -> None:
     args = parse_args()
     datasets = [d.strip() for d in args.datasets.split(",") if d.strip()]
     logs_root = Path(args.logs_root)
+    model_variants = parse_model_variants(args.model_variants)
     for name in datasets:
         if name not in REAL_DATASETS:
             print(f"[warn] dataset '{name}' 未在 REAL_DATASETS 中定义，跳过")
             continue
         cfg = REAL_DATASETS[name]
-        run_dataset(name, cfg, args.seeds, logs_root, args.monitor_preset, args.device)
+        run_dataset(
+            name,
+            cfg,
+            model_variants,
+            args.seeds,
+            logs_root,
+            args.monitor_preset,
+            args.device,
+            args.severity_scheduler_scale,
+        )
     print("[done] all requested runs finished.")
 
 

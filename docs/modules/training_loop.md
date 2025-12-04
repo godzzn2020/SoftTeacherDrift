@@ -7,7 +7,7 @@
 3. 学生前向 + 损失：监督 CE + 无监督（伪标签 + 一致性）。
 4. 反向传播与学生参数更新；EMA 更新教师。
 5. 计算漂移信号，交给 `DriftMonitor` 得到 `drift_flag` 与 `monitor_severity`，再由 `SeverityCalibrator` 将 error/divergence/entropy 的相对增量转换为 `drift_severity_raw` / 归一化 `drift_severity`。
-6. `update_hparams` 或 `update_hparams_with_severity` 输出新的超参与 regime（严重度版本会在漂移时按 s_norm 进一步缩放 alpha/lr/lambda_u/tau），随后调整优化器学习率。
+6. `update_hparams` 或 `update_hparams_with_severity` 输出新的超参与 regime（严重度版本会在漂移时按 s_norm × `severity_scheduler_scale` 进一步缩放 alpha/lr/lambda_u/tau）。当 `TrainingConfig.severity_scheduler_scale=0.0` 时就完全退化为 baseline；`>1.0` 会得到更激进的调节。随后调整优化器学习率。
 7. 更新在线指标（Accuracy、Cohen Kappa），记录完整日志。
 8. 若配置 `log_path`，在结束后写 CSV；同时函数返回 DataFrame 供脚本使用。
 

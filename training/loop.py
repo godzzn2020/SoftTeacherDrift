@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
 import os
@@ -43,6 +43,7 @@ class TrainingConfig:
     severity_eps: float = 1e-6
     severity_norm_low: float = 0.0
     severity_norm_high: float = 2.0
+    severity_scheduler_scale: float = 1.0
     severity_scheduler_config: Optional[SeveritySchedulerConfig] = None
 
 
@@ -126,6 +127,10 @@ def run_training_loop(
     sample_idx = -1
     severity_calibrator: Optional[SeverityCalibrator] = None
     severity_scheduler_cfg = config.severity_scheduler_config or SeveritySchedulerConfig()
+    severity_scheduler_cfg = replace(
+        severity_scheduler_cfg,
+        severity_scale=max(0.0, config.severity_scheduler_scale),
+    )
     if config.use_severity_scheduler:
         severity_calibrator = SeverityCalibrator(
             ema_momentum=config.severity_ema_momentum,
