@@ -22,6 +22,7 @@ from data import streams
 from drift import detectors
 from models.teacher_student import TeacherStudentModel
 from scheduler.hparam_scheduler import HParams, SchedulerState
+from soft_drift.utils.run_paths import create_experiment_run
 from training.loop import FeatureVectorizer, LabelEncoder, TrainingConfig, run_training_loop
 
 
@@ -152,7 +153,20 @@ def main() -> None:
         choices=["none", "error_ph_meta", "divergence_ph_meta", "error_divergence_ph_meta"],
         help="漂移检测器预设（none 表示不启用）",
     )
+    parser.add_argument("--results_root", type=str, default="results", help="结果输出根目录")
+    parser.add_argument("--logs_root", type=str, default="logs", help="日志输出根目录")
+    parser.add_argument("--run_name", type=str, default=None, help="附加到 run_id 的别名")
+    parser.add_argument("--run_id", type=str, default=None, help="自定义 run_id，谨慎使用")
     args = parser.parse_args()
+
+    experiment_run = create_experiment_run(
+        experiment_name="first_stage_experiments",
+        results_root=args.results_root,
+        logs_root=args.logs_root,
+        run_name=args.run_name,
+        run_id=args.run_id,
+    )
+    print(f"[run] first_stage_experiments run_id={experiment_run.run_id}")
 
     dataset_filters = _parse_list(args.datasets)
     model_filters = _parse_list(args.models)
@@ -169,16 +183,18 @@ def main() -> None:
 
     for base_cfg in selected_datasets:
         for model_variant in model_list:
-            log_path = _default_log_path(base_cfg.dataset_name, model_variant, args.seed)
+            run_paths = experiment_run.prepare_dataset_run(base_cfg.dataset_name, model_variant, args.seed)
+            log_path = run_paths.log_csv_path()
             cfg = replace(
                 base_cfg,
                 model_variant=model_variant,
                 seed=args.seed,
-                log_path=log_path,
+                log_path=str(log_path),
                 monitor_preset=args.monitor_preset,
             )
             logs = run_experiment(cfg, device=args.device)
             final_acc = logs["metric_accuracy"].iloc[-1] if not logs.empty else float("nan")
+            run_paths.update_legacy_pointer()
             print(
                 f"[{cfg.dataset_name}][{cfg.model_variant}][seed={cfg.seed}] final accuracy = {final_acc:.4f}"
             )

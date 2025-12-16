@@ -14,6 +14,27 @@
 - `training/loop.py` 日志增加 0-based `sample_idx`，统一漂移检测时间戳。
 - 新增 `experiments/abrupt_stage1_experiments.py` 与 `experiments/analyze_abrupt_results.py`，提供突变漂移批量运行、汇总与绘图；相应文档与指标说明同步更新。
 
+2025-12-04  [assistant]  修改 summary：实现 Phase0 离线监督 MLP 基线（真实数据划分、Tabular MLP、训练脚本与结果汇总脚本），并补充统一的 CLI/文档说明  
+影响文件：datasets/__init__.py, datasets/preprocessing.py, datasets/offline_real_datasets.py, data/streams.py, models/tabular_mlp_baseline.py, experiments/phase0_offline_supervised.py, evaluation/phase0_offline_summary.py, scripts/run_phase0_offline_supervised.sh, docs/INDEX.md, docs/modules/data_streams.md, docs/modules/test_scripts.md, docs/modules/phase0_offline_supervised.md, changelog/CHANGELOG.md
+
+2025-12-04  [assistant]  修改 summary：修复真实数据集中存在 -1/1 等非连续数值标签导致 CE 报错的问题，统一将标签重新映射为 `[0, C)`  
+影响文件：datasets/preprocessing.py, docs/modules/data_streams.md, changelog/CHANGELOG.md
+
+2025-12-04  [assistant]  修改 summary：Phase0 多 GPU 脚本支持按数据集粒度并行，每个数据集独立启动进程（seeds 串行）  
+影响文件：scripts/run_phase0_offline_supervised.sh, docs/modules/test_scripts.md, docs/modules/phase0_offline_supervised.md, changelog/CHANGELOG.md
+
+2025-12-04  [assistant]  修改 summary：将“多数据集实验需按数据集并行、种子串行”的统一规矩写入测试脚本文档，作为后续脚本的公共约定  
+影响文件：docs/modules/test_scripts.md, changelog/CHANGELOG.md
+
+2025-12-04  [assistant]  修改 summary：新增 Phase1 离线半监督 Tabular MLP + EMA（训练模块、CLI 脚本、run-level & summary 输出、文档说明）  
+影响文件：training/tabular_semi_ema.py, experiments/phase1_offline_tabular_semi_ema.py, docs/PROJECT_OVERVIEW.md, docs/INDEX.md, docs/modules/test_scripts.md, docs/modules/phase1_offline_semi_ema.md, changelog/CHANGELOG.md
+
+2025-12-04  [assistant]  修改 summary：增加 Phase0 完全并行脚本（数据集 × seed 全并行，按数据量加权分配 GPU），并在文档说明新的使用方式  
+影响文件：scripts/run_phase0_offline_supervised_full_parallel.sh, docs/modules/test_scripts.md, docs/modules/phase0_offline_supervised.md, changelog/CHANGELOG.md
+
+2025-12-04  [assistant]  修改 summary：实现通用多 GPU 调度器（Job 启发式 + plan 配置），支持 Phase0 MLP 与 Stage1 合成流；同时让 Stage1 `--seeds` 支持逗号分隔，新增 `experiments/phase0_mlp_full_supervised.py` 作为兼容入口  
+影响文件：scripts/multi_gpu_launcher.py, experiments/stage1_multi_seed.py, experiments/phase0_mlp_full_supervised.py, docs/modules/test_scripts.md, changelog/CHANGELOG.md
+
 2025-11-20  [assistant]  修改 summary：新增离线 detector 网格搜索脚本，支持多信号/检测器组合的批量评估  
 影响文件：experiments/offline_detector_sweep.py, docs/modules/experiments_stage1.md
 

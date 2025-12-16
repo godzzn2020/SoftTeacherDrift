@@ -1,0 +1,22 @@
+{
+  "dataset_name": "NOAA",
+  "seed": 1,
+  "labeled_ratio": 1.0,
+  "train_samples": 10896,
+  "train_labeled_samples": 10896,
+  "val_samples": 3631,
+  "test_samples": 3631,
+  "best_epoch": 22,
+  "best_val_acc": 0.8094188928669788,
+  "test_acc": 0.8052877995042688,
+  "max_epochs": 50,
+  "batch_size": 1024,
+  "optimizer": "AdamW",
+  "lr": 0.001,
+  "weight_decay": 1e-05,
+  "hidden_dim": 512,
+  "num_layers": 4,
+  "dropout": 0.2,
+  "activation": "relu",
+  "use_batchnorm": true
+}

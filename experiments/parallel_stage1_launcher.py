@@ -16,11 +16,8 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from experiments.first_stage_experiments import (
-    ExperimentConfig,
-    _default_experiment_configs,
-    _default_log_path,
-)
+from soft_drift.utils.run_paths import DatasetRunPaths, ExperimentRun, create_experiment_run
+from experiments.first_stage_experiments import ExperimentConfig, _default_experiment_configs
 
 
 @dataclass
@@ -30,6 +27,7 @@ class Task:
     label: str
     cmd: List[str]
     env: Dict[str, str]
+    run_paths: DatasetRunPaths
 
 
 def parse_args() -> argparse.Namespace:
@@ -96,6 +94,10 @@ def parse_args() -> argparse.Namespace:
         default=1.0,
         help="severity-aware 调度缩放系数（仅 *_severity 变体生效）",
     )
+    parser.add_argument("--results_root", type=str, default="results", help="结果输出根目录")
+    parser.add_argument("--logs_root", type=str, default="logs", help="日志输出根目录")
+    parser.add_argument("--run_name", type=str, default=None, help="附加到 run_id 的标识")
+    parser.add_argument("--run_id", type=str, default=None, help="自定义 run_id，谨慎使用")
     return parser.parse_args()
 
 
@@ -148,11 +150,12 @@ def build_command(
     cfg: ExperimentConfig,
     model_variant: str,
     seed: int,
-    log_path: str,
+    log_path: Path,
     monitor_preset: str,
     python_bin: str,
     device: str,
     severity_scheduler_scale: float,
+    experiment_run: ExperimentRun,
 ) -> List[str]:
     hidden_dims = ",".join(str(d) for d in cfg.hidden_dims)
     cmd = [
@@ -185,7 +188,15 @@ def build_command(
         "--monitor_preset",
         monitor_preset,
         "--log_path",
-        log_path,
+        str(log_path),
+        "--results_root",
+        str(experiment_run.results_root),
+        "--logs_root",
+        str(experiment_run.logs_root),
+        "--experiment_name",
+        experiment_run.experiment_name,
+        "--run_id",
+        experiment_run.run_id,
         "--device",
         device,
         "--seed",
@@ -206,13 +217,15 @@ def create_tasks(
     monitor_preset: str,
     python_bin: str,
     device: str,
+    experiment_run: ExperimentRun,
     severity_scheduler_scale: float,
 ) -> List[Task]:
     tasks: List[Task] = []
     for cfg in datasets:
         for seed in seeds:
             for model_variant in models:
-                log_path = _default_log_path(cfg.dataset_name, model_variant, seed)
+                run_paths = experiment_run.prepare_dataset_run(cfg.dataset_name, model_variant, seed)
+                log_path = run_paths.log_csv_path()
                 cmd = build_command(
                     cfg,
                     model_variant,
@@ -222,9 +235,10 @@ def create_tasks(
                     python_bin,
                     device,
                     severity_scheduler_scale,
+                    experiment_run,
                 )
                 label = f"{cfg.dataset_name}__{model_variant}__seed{seed}"
-                tasks.append(Task(label=label, cmd=cmd, env={}))
+                tasks.append(Task(label=label, cmd=cmd, env={}, run_paths=run_paths))
     return tasks
 
 
@@ -270,6 +284,7 @@ def run_tasks(tasks: List[Task], gpus: List[str], max_jobs_per_gpu: int, sleep_i
                     status = "成功" if ret == 0 else f"失败({ret})"
                     gpu_label = rt.gpu if rt.gpu is not None else "cpu"
                     print(f"[完成][{gpu_label}] {rt.task.label} -> {status}")
+                    rt.task.run_paths.update_legacy_pointer()
                     slots.append((rt.gpu, rt.slot_id))
                     running.pop(i)
                 else:
@@ -296,6 +311,14 @@ def run_tasks(tasks: List[Task], gpus: List[str], max_jobs_per_gpu: int, sleep_i
 
 def main() -> None:
     args = parse_args()
+    experiment_run = create_experiment_run(
+        experiment_name="parallel_stage1_launcher",
+        results_root=args.results_root,
+        logs_root=args.logs_root,
+        run_name=args.run_name,
+        run_id=args.run_id,
+    )
+    print(f"[run] parallel_stage1_launcher run_id={experiment_run.run_id}")
     dataset_filters = ensure_list(args.datasets)
     model_filters = ensure_list(args.models)
     gpus = parse_gpus(args.gpus)
@@ -309,6 +332,7 @@ def main() -> None:
         monitor_preset=args.monitor_preset,
         python_bin=args.python_bin,
         device=args.device,
+        experiment_run=experiment_run,
         severity_scheduler_scale=args.severity_scheduler_scale,
     )
     print(f"共生成 {len(tasks)} 个任务，将使用 GPU 列表：{gpus or ['cpu']}（每卡 {args.max_jobs_per_gpu} 个并发）")

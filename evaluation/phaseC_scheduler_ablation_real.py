@@ -15,6 +15,8 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+from soft_drift.utils.run_paths import create_experiment_run, resolve_log_path
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Phase C3：真实流调度消融评估")
@@ -59,6 +61,26 @@ def parse_args() -> argparse.Namespace:
         "--output_dir",
         type=str,
         default="results/phaseC_scheduler_ablation_real",
+    )
+    parser.add_argument(
+        "--experiment_name",
+        type=str,
+        default="phaseC_scheduler_ablation_real",
+        help="评估 run 的 experiment_name",
+    )
+    parser.add_argument("--run_name", type=str, default=None, help="评估 run 的别名")
+    parser.add_argument("--run_id", type=str, default=None, help="覆盖评估 run_id")
+    parser.add_argument(
+        "--log_experiment",
+        type=str,
+        default="run_real_adaptive",
+        help="训练日志所属实验名称",
+    )
+    parser.add_argument(
+        "--log_run_id",
+        type=str,
+        default=None,
+        help="训练 run_id（缺省时尝试使用最新或旧版路径）",
     )
     return parser.parse_args()
 
@@ -243,21 +265,33 @@ def main() -> None:
     datasets = parse_str_list(args.datasets)
     model_variants = parse_str_list(args.model_variants)
     seeds = parse_int_list(args.seeds)
-    logs_root = Path(args.logs_root)
-    output_dir = Path(args.output_dir)
-    ensure_dir(output_dir)
+    experiment_run = create_experiment_run(
+        experiment_name=args.experiment_name,
+        results_root=args.output_dir,
+        logs_root=args.logs_root,
+        run_name=args.run_name,
+        run_id=args.run_id,
+    )
+    output_dir = experiment_run.summary_dir()
+    print(f"[run] {experiment_run.describe()} -> {output_dir}")
 
     run_records: List[Dict[str, float]] = []
 
     for dataset in datasets:
-        dataset_dir = logs_root / dataset
         for variant in model_variants:
             for seed in seeds:
-                log_path = dataset_dir / f"{dataset}__{variant}__seed{seed}.csv"
-                if not log_path.exists():
-                    print(f"[warn] missing log {log_path}, skip")
+                log_path = resolve_log_path(
+                    logs_root=args.logs_root,
+                    experiment_name=args.log_experiment,
+                    dataset_name=dataset,
+                    model_variant=variant,
+                    seed=seed,
+                    run_id=args.log_run_id,
+                )
+                if not log_path:
+                    print(f"[warn] missing log dataset={dataset} variant={variant} seed={seed}, skip")
                     continue
-                df = load_log(log_path)
+                df = load_log(Path(log_path))
                 if df.empty:
                     print(f"[warn] empty log {log_path}, skip")
                     continue

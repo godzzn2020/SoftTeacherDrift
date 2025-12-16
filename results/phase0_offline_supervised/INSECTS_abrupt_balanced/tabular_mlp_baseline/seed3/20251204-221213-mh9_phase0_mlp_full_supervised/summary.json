@@ -1,0 +1,22 @@
+{
+  "dataset_name": "INSECTS_abrupt_balanced",
+  "seed": 3,
+  "labeled_ratio": 1.0,
+  "train_samples": 31709,
+  "train_labeled_samples": 31709,
+  "val_samples": 10569,
+  "test_samples": 10569,
+  "best_epoch": 22,
+  "best_val_acc": 0.5519916737628915,
+  "test_acc": 0.6464187718800265,
+  "max_epochs": 50,
+  "batch_size": 1024,
+  "optimizer": "AdamW",
+  "lr": 0.001,
+  "weight_decay": 1e-05,
+  "hidden_dim": 512,
+  "num_layers": 4,
+  "dropout": 0.2,
+  "activation": "relu",
+  "use_batchnorm": true
+}

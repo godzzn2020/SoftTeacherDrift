@@ -11,6 +11,8 @@
 - [Stage1 实验设置](modules/experiments_stage1.md) — `experiments/first_stage_experiments.py`
 - [漂移评估指标](modules/evaluation_metrics.md) — `evaluation/` 目录
 - [测试脚本与常用命令](modules/test_scripts.md) — 训练/评估脚本 CLI 参数与示例
+- [Phase0 离线监督基线](modules/phase0_offline_supervised.md) — 真实数据划分、Tabular MLP、Phase0 训练与汇总脚本
+- [Phase1 离线半监督](modules/phase1_offline_semi_ema.md) — Tabular MLP + EMA Teacher、离线半监督实验脚本
 
 ## 变更记录
 - [CHANGELOG](../changelog/CHANGELOG.md)

@@ -20,6 +20,11 @@
 - `training/loop.py`：在线训练主循环，记录 batch 级日志；`run_experiment.py` & `experiments/first_stage_experiments.py` 提供 CLI 入口及批量实验脚本。
 - `evaluation/`：（已启动）聚焦漂移指标计算与实验日志评估，将持续扩展。
 
+## 阶段性离线实验
+
+- **Phase0 — 全监督 Tabular MLP 基线**：`experiments/phase0_offline_supervised.py` + `results/phase0_offline_supervised/`，在固定的 train/val/test 划分上评估 MLP 上限，输出 run-level 与 summary。
+- **Phase1 — 半监督 + EMA Teacher**：`experiments/phase1_offline_tabular_semi_ema.py` + `results/phase1_offline_semisup/`，复用 Phase0 划分，在低标签率（0.05/0.1）下验证 Teacher-Student 机制；教师验证精度用于 early stopping，并记录 teacher/student 的 val/test 指标。
+
 ## 数据与日志约定
 
 - 合成数据存放在 `data/synthetic/{dataset_name}/`，文件命名为：

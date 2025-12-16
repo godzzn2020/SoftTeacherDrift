@@ -6,6 +6,8 @@
 - 约定：  
   - **新增或调整此类脚本时，必须同步更新本文件**，保证测试入口始终可查；  
   - **所有 CLI 脚本都要在文件开头注入 `Path(__file__).resolve().parents[1]` 到 `sys.path`**（示例如下），以便直接 `python xxx.py` 时能找到 `data/`、`models/` 等模块。
+  - 日志与结果的统一目录规范参见《docs/modules/outputs_and_logs.md》，所有示例命令均会自动写入带 `run_id` 的子目录。
+  - **多数据集实验默认策略**：当需要在多张 GPU 上并行跑多个数据集时，应按“**每个数据集独立进程、seeds 在进程内部串行**”的方式启动，所有数据集按顺序平均分配到可用 GPU（不足时轮询）。参考 `scripts/run_phase0_offline_supervised.sh`；后续新增的多数据集脚本若需并行，也要遵守这一模式。
 
 ```python
 import sys
@@ -187,6 +189,29 @@ python evaluation/phaseC_scheduler_ablation_real.py \
   --window 500 \
   --final_window 200 \
   --min_separation 200
+```
+
+### evaluation/phase0_offline_summary.py
+
+- 作用：遍历 `results/phase0_offline_supervised/**/summary.json`，整理所有 Phase0 离线 MLP run 的 `best_val_acc` / `test_acc` 等指标，并按 dataset 聚合输出。
+- 核心参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--root_dir` | Phase0 训练结果根目录 | `results/phase0_offline_supervised` |
+| `--datasets` | 逗号分隔的 dataset 过滤列表 | 空（表示全部） |
+| `--run_name` / `--run_id` | 汇总脚本 run_id 的附加名称 / 覆盖值 | 空 |
+| `--results_root` / `--logs_root` | 汇总 run 的输出根目录 | `results` / `logs` |
+
+- 输出：`results/phase0_offline_summary/summary/{run_id}/run_level_metrics.csv` 与 `summary_by_dataset.csv`。
+
+- 示例：
+
+```bash
+python evaluation/phase0_offline_summary.py \
+  --root_dir results/phase0_offline_supervised \
+  --datasets Airlines,Electricity \
+  --run_name phase0_report
 ```
 
 ### evaluation/phaseC_scheduler_ablation_real.py
@@ -445,6 +470,160 @@ python experiments/run_real_adaptive.py \
   --model_variants ts_drift_adapt,ts_drift_adapt_severity \
   --monitor_preset error_divergence_ph_meta \
   --device cuda
+```
+
+### experiments/phase0_offline_supervised.py
+
+- 作用：在真实数据集上离线训练 Tabular MLP 基线，并按 run_id 写入 `results/phase0_offline_supervised/{dataset}/tabular_mlp_baseline/seed{seed}/{run_id}/`。
+- 核心参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--datasets` | 真实数据集列表 | `Airlines,Electricity,NOAA,INSECTS_abrupt_balanced` |
+| `--seeds` | 逗号或空格分隔的随机种子 | `1` |
+| `--labeled_ratio` | 训练集标注占比（1.0 / 0.1 / 0.05 等） | `1.0` |
+| `--hidden_dim` / `--num_layers` / `--dropout` / `--activation` / `--no_batchnorm` | Tabular MLP 结构参数 | `512` / `4` / `0.2` / `relu` / 默认开启 BatchNorm |
+| `--lr` / `--weight_decay` / `--batch_size` / `--max_epochs` | 训练超参 | `1e-3` / `1e-5` / `1024` / `50` |
+| `--lr_scheduler` | `none` / `cosine` / `step` | `cosine` |
+| `--max_samples` | 每个数据集仅取前 N 条样本（sanity check 用） | 空 |
+| `--run_tag` / `--run_id` | 输出 run_id 的附加标识 / 覆盖值 | 空 |
+| `--results_root` / `--logs_root` | 结果/日志根目录（run_paths 使用） | `results` / `logs` |
+
+- 输出：每个组合生成 `train.log`、`metrics.csv`、`summary.json`，并在 `results/phase0_offline_supervised/summary/{run_id}/` 写入 `run_level_metrics.csv` + `summary.md`。脚本内部会按 `datasets × seeds` 顺序串行执行。
+- 建议先用 `--max_samples 5000 --max_epochs 2` 做 sanity check，确认流程和目录结构正确后再跑全量。
+
+- 示例：
+
+```bash
+python experiments/phase0_offline_supervised.py \
+  --datasets Airlines,Electricity,NOAA,INSECTS_abrupt_balanced \
+  --seeds 1,2,3 \
+  --labeled_ratio 1.0 \
+  --hidden_dim 512 \
+  --num_layers 4 \
+  --dropout 0.2 \
+  --lr 1e-3 \
+  --weight_decay 1e-5 \
+  --batch_size 1024 \
+  --max_epochs 50 \
+  --run_tag phase0_mlp_full_supervised
+```
+
+### scripts/run_phase0_offline_supervised.sh
+
+- 作用：批量运行 Phase0 离线实验，自动把 DATASETS 平均分配到多张 GPU（默认两张），并在各自的 `CUDA_VISIBLE_DEVICES` 下并行启动 `experiments/phase0_offline_supervised.py`。
+- 核心环境变量（可在执行脚本前 export 或直接前缀设置）：
+
+| 变量 | 说明 | 默认 |
+| --- | --- | --- |
+| `DATASETS` | 以空格或逗号分隔的真实数据集列表 | `Airlines Electricity NOAA INSECTS_abrupt_balanced` |
+| `GPU_IDS` | 逗号分隔的 GPU 编号列表 | `0,1` |
+| `SEEDS` | 逗号分隔的随机种子 | `1,2,3` |
+| `LABELED_RATIO`, `HIDDEN_DIM`, `NUM_LAYERS`, `DROPOUT`, `LR`, `WEIGHT_DECAY`, `BATCH_SIZE`, `MAX_EPOCHS`, `LR_SCHEDULER`, `RUN_TAG` | 透传给训练脚本 | 与 CLI 默认一致 |
+| `EXTRA_ARGS` | 追加到 CLI 的自定义参数（例如 `--max_samples 5000`） | 空 |
+
+- 脚本会对每个数据集单独启动一个 Python 进程，保持 `seeds` 串行但各数据集并行运行；若数据集数量多于 GPU 数量，会按顺序轮流分配。
+
+- 示例（两张显卡并行）：
+
+```bash
+GPU_IDS="0,1" \
+DATASETS="Airlines Electricity NOAA INSECTS_abrupt_balanced" \
+SEEDS="1,2,3" \
+RUN_TAG="phase0_mlp_full_supervised" \
+./scripts/run_phase0_offline_supervised.sh
+```
+
+### scripts/run_phase0_offline_supervised_full_parallel.sh
+
+- 作用：在显存足够的机器上，将 Phase0 的 **所有数据集 × seed** 组合一次性并行运行；根据数据集规模设置权重（Airlines 最大，NOAA 最小），再把每个 `(dataset, seed)` 组合分配到 `GPU_IDS` 中当前负载最低的 GPU。
+- 环境变量：
+
+| 变量 | 说明 | 默认 |
+| --- | --- | --- |
+| `DATASETS` / `SEEDS` | 与前述脚本一致 | `Airlines Electricity NOAA INSECTS_abrupt_balanced` / `1,2,3` |
+| `GPU_IDS` | 逗号分隔 GPU 列表；每个组合都会启动一个独立进程 | `0,1` |
+| 其它（`LABELED_RATIO`, `HIDDEN_DIM`, `NUM_LAYERS`, `DROPOUT`, `LR`, `WEIGHT_DECAY`, `BATCH_SIZE`, `MAX_EPOCHS`, `LR_SCHEDULER`, `RUN_TAG`, `EXTRA_ARGS`） | 与 `phase0_offline_supervised.py` 的 CLI 对应 | 与 CLI 默认一致 |
+
+- 使用注意：
+  - 同一数据集的不同 seed 也会被拆到不同 GPU 上并行运行，请确保硬件足够支撑；
+  - 数据集权重默认 `Airlines=10`, `INSECTS=5`, `Electricity=3`, `NOAA=2`，可根据需要修改脚本。
+
+- 示例（12 个组合全部并行）：
+
+```bash
+GPU_IDS="0,1" \
+DATASETS="Airlines Electricity NOAA INSECTS_abrupt_balanced" \
+SEEDS="1,2,3" \
+RUN_TAG="phase0_mlp_full_supervised" \
+./scripts/run_phase0_offline_supervised_full_parallel.sh
+```
+
+### scripts/multi_gpu_launcher.py
+
+- 作用：统一在多张 GPU 上调度 Phase0 或 Stage1 任务。通过 Job 队列 + GPU cost 启发式，确保同一数据集的多个 seed 顺序执行，但不同数据集/任务可以并行。
+- 核心参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--plan` | `phase0_mlp`（Airlines/Electricity/NOAA/INSECTS）或 `stage1_synth_default`（sea/sine/stagger × 2 模型） | 必填 |
+| `--seeds` | 逗号或空格分隔的 seeds（传递给底层脚本，顺序运行） | `1,2,3` |
+| `--gpu-ids` | 逗号分隔 GPU 列表（缺省使用 `CUDA_VISIBLE_DEVICES` 或 `0,1`） | `0,1` |
+| `--max-jobs-per-gpu` | 单卡最大并发 job 数 | `2` |
+| `--dry-run` | 只打印调度计划，不启动任务 | `False` |
+
+- 调度策略：根据 `DATASET_GPU_COST`（Airlines/INSECTS=1.5，Electricity/NOAA=1.0，合成流=1.0）和 `GPU_CAPACITY=3.0` 做简单的 best-fit；一旦 job 启动就绑定 `CUDA_VISIBLE_DEVICES=<gpu>`，并在完成时输出耗时与退出码。
+
+- 示例：
+
+```bash
+# Phase0，四个数据集 × seeds=1,2,3
+python scripts/multi_gpu_launcher.py --plan phase0_mlp --seeds 1,2,3 --gpu-ids 0,1 --max-jobs-per-gpu 2
+
+# Stage1 合成流，seeds=1..5
+python scripts/multi_gpu_launcher.py --plan stage1_synth_default --seeds 1,2,3,4,5 --gpu-ids 0,1 --max-jobs-per-gpu 2
+
+# 仅检查调度计划
+python scripts/multi_gpu_launcher.py --plan phase0_mlp --seeds 1,2 --gpu-ids 0,1 --dry-run
+```
+
+### experiments/phase1_offline_tabular_semi_ema.py
+
+- 作用：运行 Phase1 离线半监督（Teacher-Student EMA）实验，对固定的 train/val/test 划分在多个 labeled_ratio 下训练 `tabular_mlp_semi_ema`，并输出 run-level 与 dataset-level summary。
+- 核心参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--datasets` | 真实数据集列表 | `Airlines,Electricity,NOAA,INSECTS_abrupt_balanced` |
+| `--seeds` | 逗号或空格分隔的随机种子 | `1,2,3` |
+| `--labeled_ratios` | 逗号分隔的 labeled_ratio | `0.05,0.1` |
+| `--output_dir` | 输出目录 | `results/phase1_offline_semisup` |
+| `--max_epochs`, `--batch_size`, `--lr`, `--weight_decay`, `--optimizer` | 训练超参 | `50`, `1024`, `1e-3`, `1e-5`, `AdamW` |
+| `--hidden_dim`, `--num_layers`, `--dropout`, `--activation`, `--no_batchnorm` | MLP 结构 | `512`, `4`, `0.2`, `relu`, 默认开启 BN |
+| `--ema_momentum`, `--lambda_u`, `--rampup_epochs`, `--confidence_threshold` | 半监督/EMA 设置 | `0.99`, `1.0`, `5`, `0.8` |
+| `--device`, `--num_workers` | 运行设备与 DataLoader worker 数 | `cuda`, `0` |
+
+- 输出：
+  - `run_level_metrics.csv`：每个 `(dataset, seed, labeled_ratio)` 的教师/学生验证/测试表现；
+  - `summary_metrics_by_dataset_variant.csv`：按 dataset + variant + labeled_ratio 聚合 teacher accuracy 的 mean/std；
+  - 每条记录包含 `run_id = YYYYMMDD-HHMMSS-xxx_phase1_mlp_semi_ema`。
+
+- 示例：
+
+```bash
+python experiments/phase1_offline_tabular_semi_ema.py \
+  --datasets Airlines,Electricity,NOAA,INSECTS_abrupt_balanced \
+  --seeds 1,2,3 \
+  --labeled_ratios 0.05,0.1 \
+  --output_dir results/phase1_offline_semisup
+
+python experiments/phase1_offline_tabular_semi_ema.py \
+  --datasets INSECTS_abrupt_balanced \
+  --seeds 1,2,3 \
+  --labeled_ratios 0.05 \
+  --max_epochs 30 \
+  --ema_momentum 0.995 \
+  --output_dir results/phase1_offline_semisup
 ```
 
 ### scripts/run_c3_synth_severity.sh

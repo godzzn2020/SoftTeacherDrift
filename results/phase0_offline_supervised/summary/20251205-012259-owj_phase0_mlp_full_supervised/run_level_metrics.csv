@@ -1,0 +1,2 @@
+dataset_name,seed,labeled_ratio,train_samples,train_labeled_samples,val_samples,test_samples,best_epoch,best_val_acc,test_acc,max_epochs,batch_size,optimizer,lr,weight_decay,hidden_dim,num_layers,dropout,activation,use_batchnorm
+INSECTS_abrupt_balanced,2,1.0,31709,31709,10569,10569,18,0.5559655596555966,0.6458510738953543,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True

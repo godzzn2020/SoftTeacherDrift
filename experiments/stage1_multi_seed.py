@@ -18,6 +18,8 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+from soft_drift.utils.run_paths import DatasetRunPaths, ExperimentRun, create_experiment_run
+
 def parse_gpus(spec: str) -> List[str]:
     if not spec or spec.lower() in {"none", "cpu"}:
         return []
@@ -26,11 +28,7 @@ def parse_gpus(spec: str) -> List[str]:
 from data.real_meta import load_insects_abrupt_balanced_meta
 from data.streams import generate_default_abrupt_synth_datasets
 from experiments import summarize_online_results as sor
-from experiments.first_stage_experiments import (
-    ExperimentConfig,
-    _default_experiment_configs,
-    _default_log_path,
-)
+from experiments.first_stage_experiments import ExperimentConfig, _default_experiment_configs
 
 
 DEFAULT_DATASETS = ["sea_abrupt4", "sine_abrupt4", "stagger_abrupt3"]
@@ -51,9 +49,12 @@ class Args:
     logs_root: Path
     synth_meta_root: str
     insects_meta: str
-    out_csv_raw: Path
-    out_csv_summary: Path
-    out_md_dir: Path
+    out_csv_raw: Optional[Path]
+    out_csv_summary: Optional[Path]
+    out_md_dir: Optional[Path]
+    results_root: Path
+    run_name: Optional[str]
+    run_id: Optional[str]
     severity_scheduler_scale: float
 
 
@@ -64,6 +65,7 @@ class Task:
     dataset: str
     model: str
     seed: int
+    run_paths: DatasetRunPaths
 
 
 def parse_args() -> Args:
@@ -83,9 +85,9 @@ def parse_args() -> Args:
     parser.add_argument(
         "--seeds",
         nargs="+",
-        type=int,
-        default=DEFAULT_SEEDS,
-        help="需要运行的随机种子",
+        type=str,
+        default=[",".join(str(x) for x in DEFAULT_SEEDS)],
+        help="随机种子（逗号或空格分隔）",
     )
     parser.add_argument(
         "--monitor_preset",
@@ -116,9 +118,22 @@ def parse_args() -> Args:
     parser.add_argument("--logs_root", type=str, default="logs", help="日志根目录")
     parser.add_argument("--synth_meta_root", type=str, default="data/synthetic")
     parser.add_argument("--insects_meta", type=str, default="datasets/real/INSECTS_abrupt_balanced.json")
-    parser.add_argument("--out_csv_raw", type=str, default="results/stage1_multi_seed_raw.csv")
-    parser.add_argument("--out_csv_summary", type=str, default="results/stage1_multi_seed_summary.csv")
-    parser.add_argument("--out_md_dir", type=str, default="results/stage1_multi_seed_md")
+    parser.add_argument("--out_csv_raw", type=str, default=None)
+    parser.add_argument("--out_csv_summary", type=str, default=None)
+    parser.add_argument("--out_md_dir", type=str, default=None)
+    parser.add_argument("--results_root", type=str, default="results", help="结果输出根目录")
+    parser.add_argument(
+        "--run_name",
+        type=str,
+        default=None,
+        help="自定义 run 名称（将附加在自动 run_id 后）",
+    )
+    parser.add_argument(
+        "--run_id",
+        type=str,
+        default=None,
+        help="覆盖自动生成的 run_id（谨慎使用，可能造成覆盖）",
+    )
     parser.add_argument(
         "--severity_scheduler_scale",
         type=float,
@@ -134,10 +149,18 @@ def parse_args() -> Args:
         raise ValueError("至少需要一个模型")
     if not ns.seeds:
         raise ValueError("至少需要一个 seed")
+    seed_values: List[int] = []
+    for token in ns.seeds:
+        for part in token.replace(",", " ").split():
+            if not part:
+                continue
+            seed_values.append(int(part))
+    if not seed_values:
+        raise ValueError("至少需要一个 seed")
     return Args(
         datasets=datasets,
         models=models,
-        seeds=list(ns.seeds),
+        seeds=seed_values,
         monitor_preset=ns.monitor_preset,
         device=ns.device,
         gpus=parse_gpus(ns.gpus),
@@ -146,9 +169,12 @@ def parse_args() -> Args:
         logs_root=Path(ns.logs_root),
         synth_meta_root=ns.synth_meta_root,
         insects_meta=ns.insects_meta,
-        out_csv_raw=Path(ns.out_csv_raw),
-        out_csv_summary=Path(ns.out_csv_summary),
-        out_md_dir=Path(ns.out_md_dir),
+        out_csv_raw=Path(ns.out_csv_raw) if ns.out_csv_raw else None,
+        out_csv_summary=Path(ns.out_csv_summary) if ns.out_csv_summary else None,
+        out_md_dir=Path(ns.out_md_dir) if ns.out_md_dir else None,
+        results_root=Path(ns.results_root),
+        run_name=ns.run_name,
+        run_id=ns.run_id,
         severity_scheduler_scale=ns.severity_scheduler_scale,
     )
 
@@ -167,16 +193,10 @@ def build_command(
     seed: int,
     monitor_preset: str,
     device: str,
-    logs_root: Path,
+    log_path: Path,
     severity_scheduler_scale: float,
+    experiment_run: ExperimentRun,
 ) -> Tuple[str, List[str]]:
-    default_log = Path(_default_log_path(cfg.dataset_name, model, seed))
-    if logs_root.resolve() != default_log.parent.parent.resolve():
-        log_dir = logs_root / cfg.dataset_name
-        log_dir.mkdir(parents=True, exist_ok=True)
-        log_path = str(log_dir / default_log.name)
-    else:
-        log_path = str(default_log)
     cmd = [
         sys.executable,
         "run_experiment.py",
@@ -193,7 +213,15 @@ def build_command(
         "--device",
         device,
         "--log_path",
-        log_path,
+        str(log_path),
+        "--results_root",
+        str(experiment_run.results_root),
+        "--logs_root",
+        str(experiment_run.logs_root),
+        "--experiment_name",
+        experiment_run.experiment_name,
+        "--run_id",
+        experiment_run.run_id,
         "--batch_size",
         str(cfg.batch_size),
         "--labeled_ratio",
@@ -218,47 +246,42 @@ def build_command(
     if cfg.label_col:
         cmd.extend(["--label_col", cfg.label_col])
     cmd.extend(["--severity_scheduler_scale", str(severity_scheduler_scale)])
-    return log_path, cmd
+    return str(log_path), cmd
 
 
 def collect_run_metrics(
-    datasets: Sequence[str],
-    models: Sequence[str],
-    seeds: Sequence[int],
-    logs_root: Path,
+    tasks: Sequence["Task"],
     synth_meta_root: str,
     insects_meta_path: str,
 ) -> pd.DataFrame:
     insects_meta = load_insects_abrupt_balanced_meta(insects_meta_path)
     records: List[Dict[str, object]] = []
-    for dataset in datasets:
-        for model in models:
-            for seed in seeds:
-                log_path = logs_root / dataset / f"{dataset}__{model}__seed{seed}.csv"
-                if not log_path.exists():
-                    continue
-                df = sor.load_log(log_path)
-                stats = sor.summarize_run(df)
-                gt_drifts, horizon = sor.get_ground_truth_drifts(dataset, seed, synth_meta_root, insects_meta)
-                detection = sor.compute_detection_from_log(df, gt_drifts, horizon)
-                records.append(
-                    {
-                        "dataset": dataset,
-                        "model": model,
-                        "seed": seed,
-                        "acc_final": stats["acc_final"],
-                        "acc_max": stats["acc_max"],
-                        "kappa_final": stats["kappa_final"],
-                        "drift_events": stats["drift_events"],
-                        "total_steps": stats["total_steps"],
-                        "seen_samples": stats["seen_samples"],
-                        "MDR": detection["MDR"],
-                        "MTD": detection["MTD"],
-                        "MTFA": detection["MTFA"],
-                        "MTR": detection["MTR"],
-                        "n_detected": detection["n_detected"],
-                    }
-                )
+    for task in tasks:
+        log_path = task.run_paths.log_csv_path()
+        if not log_path.exists():
+            continue
+        df = sor.load_log(log_path)
+        stats = sor.summarize_run(df)
+        gt_drifts, horizon = sor.get_ground_truth_drifts(task.dataset, task.seed, synth_meta_root, insects_meta)
+        detection = sor.compute_detection_from_log(df, gt_drifts, horizon)
+        records.append(
+            {
+                "dataset": task.dataset,
+                "model": task.model,
+                "seed": task.seed,
+                "acc_final": stats["acc_final"],
+                "acc_max": stats["acc_max"],
+                "kappa_final": stats["kappa_final"],
+                "drift_events": stats["drift_events"],
+                "total_steps": stats["total_steps"],
+                "seen_samples": stats["seen_samples"],
+                "MDR": detection["MDR"],
+                "MTD": detection["MTD"],
+                "MTFA": detection["MTFA"],
+                "MTR": detection["MTR"],
+                "n_detected": detection["n_detected"],
+            }
+        )
     if not records:
         raise RuntimeError("未找到任何日志，请先运行实验。")
     return pd.DataFrame(records)
@@ -332,6 +355,45 @@ def print_best_models(df_summary: pd.DataFrame) -> None:
         )
 
 
+def create_tasks(
+    datasets: List[ExperimentConfig],
+    models: List[str],
+    seeds: Sequence[int],
+    monitor_preset: str,
+    python_bin: str,
+    device: str,
+    experiment_run: ExperimentRun,
+    severity_scheduler_scale: float,
+) -> List[Task]:
+    tasks: List[Task] = []
+    for cfg in datasets:
+        for model_variant in models:
+            for seed in seeds:
+                run_paths = experiment_run.prepare_dataset_run(cfg.dataset_name, model_variant, seed)
+                log_path_str, cmd = build_command(
+                    cfg,
+                    model_variant,
+                    seed,
+                    monitor_preset,
+                    device,
+                    run_paths.log_csv_path(),
+                    severity_scheduler_scale,
+                    experiment_run,
+                )
+                cmd[0] = python_bin
+                tasks.append(
+                    Task(
+                        label=f"{cfg.dataset_name}__{model_variant}__seed{seed}",
+                        cmd=cmd,
+                        dataset=cfg.dataset_name,
+                        model=model_variant,
+                        seed=seed,
+                        run_paths=run_paths,
+                    )
+                )
+    return tasks
+
+
 def run_task_queue(tasks: List[Task], gpus: List[str], max_jobs_per_gpu: int, sleep_interval: float) -> None:
     if not tasks:
         return
@@ -382,57 +444,49 @@ def run_task_queue(tasks: List[Task], gpus: List[str], max_jobs_per_gpu: int, sl
 
 def main() -> None:
     args = parse_args()
+    experiment_run = create_experiment_run(
+        experiment_name="stage1_multi_seed",
+        results_root=args.results_root,
+        logs_root=args.logs_root,
+        run_name=args.run_name,
+        run_id=args.run_id,
+    )
+    print(f"[run] stage1_multi_seed run_id={experiment_run.run_id}")
     # 确保合成流 seeds 的 parquet + meta 已生成
     generate_default_abrupt_synth_datasets(seeds=args.seeds, out_root=args.synth_meta_root)
     cfg_map = build_dataset_config_map(seed=args.seeds[0])
     for dataset in args.datasets:
         if dataset.lower() not in cfg_map:
             raise ValueError(f"未知的数据集：{dataset}，请在 first_stage_experiments 中配置后再运行。")
-    for dataset in args.datasets:
-        template = cfg_map[dataset.lower()]
-    tasks: List[Task] = []
-    for dataset in args.datasets:
-        template = cfg_map[dataset.lower()]
-        for model in args.models:
-            for seed in args.seeds:
-                log_path, cmd = build_command(
-                    template,
-                    model,
-                    seed,
-                    args.monitor_preset,
-                    args.device,
-                    args.logs_root,
-                    args.severity_scheduler_scale,
-                )
-                tasks.append(Task(label=f"{dataset}__{model}__seed{seed}", cmd=cmd, dataset=dataset, model=model, seed=seed))
-    run_task_queue(tasks, args.gpus, args.max_jobs_per_gpu, args.sleep_interval)
-    df_raw = collect_run_metrics(
-        args.datasets,
-        args.models,
-        args.seeds,
-        args.logs_root,
-        args.synth_meta_root,
-        args.insects_meta,
+    selected_cfgs = [cfg_map[d.lower()] for d in args.datasets]
+    tasks = create_tasks(
+        datasets=selected_cfgs,
+        models=args.models,
+        seeds=args.seeds,
+        monitor_preset=args.monitor_preset,
+        python_bin=sys.executable,
+        device=args.device,
+        experiment_run=experiment_run,
+        severity_scheduler_scale=args.severity_scheduler_scale,
     )
-    args.out_csv_raw.parent.mkdir(parents=True, exist_ok=True)
-    df_raw.to_csv(args.out_csv_raw, index=False)
+    run_task_queue(tasks, args.gpus, args.max_jobs_per_gpu, args.sleep_interval)
+    for task in tasks:
+        task.run_paths.update_legacy_pointer()
+    df_raw = collect_run_metrics(tasks, args.synth_meta_root, args.insects_meta)
+    summary_dir = experiment_run.summary_dir()
+    raw_path = args.out_csv_raw or (summary_dir / "run_level_metrics.csv")
+    summary_path = args.out_csv_summary or (summary_dir / "summary_metrics_by_dataset_model.csv")
+    md_dir = args.out_md_dir or (summary_dir / "markdown")
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    df_raw.to_csv(raw_path, index=False)
     df_summary = compute_summary(df_raw)
-    args.out_csv_summary.parent.mkdir(parents=True, exist_ok=True)
-    df_summary.to_csv(args.out_csv_summary, index=False)
-    save_md_per_dataset(df_summary, args.out_md_dir)
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    df_summary.to_csv(summary_path, index=False)
+    save_md_per_dataset(df_summary, md_dir)
     print_best_models(df_summary)
+    print(f"[done] raw metrics -> {raw_path}")
+    print(f"[done] summary metrics -> {summary_path}")
 
 
 if __name__ == "__main__":
     main()
-def parse_gpus(spec: str) -> List[str]:
-    if not spec or spec.lower() in {"none", "cpu"}:
-        return []
-    return [token.strip() for token in spec.split(",") if token.strip()]
-@dataclass
-class Task:
-    label: str
-    cmd: List[str]
-    dataset: str
-    model: str
-    seed: int

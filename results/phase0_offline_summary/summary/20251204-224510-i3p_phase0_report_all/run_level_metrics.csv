@@ -1,0 +1,14 @@
+dataset_name,model_variant,seed,run_id,labeled_ratio,train_samples,train_labeled_samples,val_samples,test_samples,best_epoch,best_val_acc,test_acc,max_epochs,batch_size,optimizer,lr,weight_decay,hidden_dim,num_layers,dropout,activation,use_batchnorm
+Airlines,tabular_mlp_baseline,2,20251204-221213-c1r_phase0_mlp_full_supervised,1.0,323630,323630,107876,107876,49,0.6267381067151173,0.5951462790611443,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True
+Airlines,tabular_mlp_baseline,1,20251204-221213-c1r_phase0_mlp_full_supervised,1.0,323630,323630,107876,107876,38,0.6292965997997702,0.5952389780859505,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True
+Airlines,tabular_mlp_baseline,1,20251204-215634-vvg_phase0_mlp_full_supervised,1.0,323630,323630,107876,107876,38,0.6292965997997702,0.5952389780859505,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True
+Airlines,tabular_mlp_baseline,3,20251204-221213-c1r_phase0_mlp_full_supervised,1.0,323630,323630,107876,107876,42,0.6278783047202343,0.5963235566761838,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True
+NOAA,tabular_mlp_baseline,2,20251204-221213-t5w_phase0_mlp_full_supervised,1.0,10896,10896,3631,3631,16,0.8113467364362434,0.8050123932800881,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True
+NOAA,tabular_mlp_baseline,1,20251204-221213-t5w_phase0_mlp_full_supervised,1.0,10896,10896,3631,3631,22,0.8094188928669788,0.8052877995042688,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True
+NOAA,tabular_mlp_baseline,3,20251204-221213-t5w_phase0_mlp_full_supervised,1.0,10896,10896,3631,3631,21,0.8094188928669788,0.8055632057284494,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True
+INSECTS_abrupt_balanced,tabular_mlp_baseline,2,20251204-221213-mh9_phase0_mlp_full_supervised,1.0,31709,31709,10569,10569,18,0.5559655596555966,0.6458510738953543,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True
+INSECTS_abrupt_balanced,tabular_mlp_baseline,1,20251204-221213-mh9_phase0_mlp_full_supervised,1.0,31709,31709,10569,10569,7,0.550288579808875,0.6314693916169931,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True
+INSECTS_abrupt_balanced,tabular_mlp_baseline,3,20251204-221213-mh9_phase0_mlp_full_supervised,1.0,31709,31709,10569,10569,22,0.5519916737628915,0.6464187718800265,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True
+Electricity,tabular_mlp_baseline,2,20251204-221213-smm_phase0_mlp_full_supervised,1.0,27187,27187,9062,9062,5,0.6630986537188258,0.7167291988523504,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True
+Electricity,tabular_mlp_baseline,1,20251204-221213-smm_phase0_mlp_full_supervised,1.0,27187,27187,9062,9062,6,0.6698300595894946,0.6963142794085191,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True
+Electricity,tabular_mlp_baseline,3,20251204-221213-smm_phase0_mlp_full_supervised,1.0,27187,27187,9062,9062,1,0.6521739130434783,0.7099977929816818,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True

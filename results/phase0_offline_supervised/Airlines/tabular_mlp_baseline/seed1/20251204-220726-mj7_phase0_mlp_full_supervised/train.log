@@ -1,0 +1,25 @@
+[2025-12-04 22:07:26][Airlines][seed=1] loading dataset splits...
+[2025-12-04 22:07:27][Airlines][seed=1] dataset ready: train=323630 (labeled=323630), val=107876, test=107876, input_dim=7, classes=2
+[2025-12-04 22:07:33][Airlines][seed=1] epoch=1/50 train_loss=0.6624 train_acc=0.5991 val_loss=0.6880 val_acc=0.5491 lr=1.0000e-03
+[2025-12-04 22:07:38][Airlines][seed=1] epoch=2/50 train_loss=0.6542 train_acc=0.6095 val_loss=0.6870 val_acc=0.5641 lr=9.9901e-04
+[2025-12-04 22:07:42][Airlines][seed=1] epoch=3/50 train_loss=0.6514 train_acc=0.6171 val_loss=0.6673 val_acc=0.5817 lr=9.9606e-04
+[2025-12-04 22:07:47][Airlines][seed=1] epoch=4/50 train_loss=0.6491 train_acc=0.6215 val_loss=0.6740 val_acc=0.5759 lr=9.9114e-04
+[2025-12-04 22:07:52][Airlines][seed=1] epoch=5/50 train_loss=0.6467 train_acc=0.6247 val_loss=0.6789 val_acc=0.5782 lr=9.8429e-04
+[2025-12-04 22:07:56][Airlines][seed=1] epoch=6/50 train_loss=0.6447 train_acc=0.6285 val_loss=0.6840 val_acc=0.5735 lr=9.7553e-04
+[2025-12-04 22:08:01][Airlines][seed=1] epoch=7/50 train_loss=0.6428 train_acc=0.6313 val_loss=0.6612 val_acc=0.5976 lr=9.6489e-04
+[2025-12-04 22:08:06][Airlines][seed=1] epoch=8/50 train_loss=0.6401 train_acc=0.6345 val_loss=0.6725 val_acc=0.5936 lr=9.5241e-04
+[2025-12-04 22:08:11][Airlines][seed=1] epoch=9/50 train_loss=0.6383 train_acc=0.6364 val_loss=0.6505 val_acc=0.6119 lr=9.3815e-04
+[2025-12-04 22:08:16][Airlines][seed=1] epoch=10/50 train_loss=0.6371 train_acc=0.6379 val_loss=0.6518 val_acc=0.6064 lr=9.2216e-04
+[2025-12-04 22:08:21][Airlines][seed=1] epoch=11/50 train_loss=0.6351 train_acc=0.6407 val_loss=0.6503 val_acc=0.6113 lr=9.0451e-04
+[2025-12-04 22:08:26][Airlines][seed=1] epoch=12/50 train_loss=0.6331 train_acc=0.6427 val_loss=0.6431 val_acc=0.6161 lr=8.8526e-04
+[2025-12-04 22:08:31][Airlines][seed=1] epoch=13/50 train_loss=0.6323 train_acc=0.6449 val_loss=0.6555 val_acc=0.6091 lr=8.6448e-04
+[2025-12-04 22:08:36][Airlines][seed=1] epoch=14/50 train_loss=0.6307 train_acc=0.6471 val_loss=0.6441 val_acc=0.6148 lr=8.4227e-04
+[2025-12-04 22:08:41][Airlines][seed=1] epoch=15/50 train_loss=0.6292 train_acc=0.6484 val_loss=0.6573 val_acc=0.6107 lr=8.1871e-04
+[2025-12-04 22:08:46][Airlines][seed=1] epoch=16/50 train_loss=0.6286 train_acc=0.6492 val_loss=0.6571 val_acc=0.6053 lr=7.9389e-04
+[2025-12-04 22:08:51][Airlines][seed=1] epoch=17/50 train_loss=0.6275 train_acc=0.6508 val_loss=0.6673 val_acc=0.5981 lr=7.6791e-04
+[2025-12-04 22:08:55][Airlines][seed=1] epoch=18/50 train_loss=0.6272 train_acc=0.6504 val_loss=0.6381 val_acc=0.6285 lr=7.4088e-04
+[2025-12-04 22:09:00][Airlines][seed=1] epoch=19/50 train_loss=0.6254 train_acc=0.6534 val_loss=0.6481 val_acc=0.6170 lr=7.1289e-04
+[2025-12-04 22:09:05][Airlines][seed=1] epoch=20/50 train_loss=0.6245 train_acc=0.6541 val_loss=0.6425 val_acc=0.6265 lr=6.8406e-04
+[2025-12-04 22:09:10][Airlines][seed=1] epoch=21/50 train_loss=0.6240 train_acc=0.6546 val_loss=0.6439 val_acc=0.6216 lr=6.5451e-04
+[2025-12-04 22:09:15][Airlines][seed=1] epoch=22/50 train_loss=0.6233 train_acc=0.6558 val_loss=0.6718 val_acc=0.5811 lr=6.2434e-04
+[2025-12-04 22:09:20][Airlines][seed=1] epoch=23/50 train_loss=0.6223 train_acc=0.6569 val_loss=0.6755 val_acc=0.5843 lr=5.9369e-04

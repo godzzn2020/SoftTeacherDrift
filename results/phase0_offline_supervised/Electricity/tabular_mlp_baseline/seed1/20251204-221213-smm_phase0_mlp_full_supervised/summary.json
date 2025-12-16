@@ -1,0 +1,22 @@
+{
+  "dataset_name": "Electricity",
+  "seed": 1,
+  "labeled_ratio": 1.0,
+  "train_samples": 27187,
+  "train_labeled_samples": 27187,
+  "val_samples": 9062,
+  "test_samples": 9062,
+  "best_epoch": 6,
+  "best_val_acc": 0.6698300595894946,
+  "test_acc": 0.6963142794085191,
+  "max_epochs": 50,
+  "batch_size": 1024,
+  "optimizer": "AdamW",
+  "lr": 0.001,
+  "weight_decay": 1e-05,
+  "hidden_dim": 512,
+  "num_layers": 4,
+  "dropout": 0.2,
+  "activation": "relu",
+  "use_batchnorm": true
+}

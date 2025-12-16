@@ -1,0 +1,2 @@
+dataset_name,seed,labeled_ratio,train_samples,train_labeled_samples,val_samples,test_samples,best_epoch,best_val_acc,test_acc,max_epochs,batch_size,optimizer,lr,weight_decay,hidden_dim,num_layers,dropout,activation,use_batchnorm
+Electricity,3,1.0,27187,27187,9062,9062,1,0.6521739130434783,0.7099977929816818,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True

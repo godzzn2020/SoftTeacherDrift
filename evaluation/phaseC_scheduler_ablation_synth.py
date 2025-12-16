@@ -16,6 +16,8 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+from soft_drift.utils.run_paths import create_experiment_run, resolve_log_path
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Phase C3：scheduler 消融（合成流）")
@@ -65,7 +67,27 @@ def parse_args() -> argparse.Namespace:
         "--output_dir",
         type=str,
         default="results/phaseC_scheduler_ablation_synth",
-        help="输出目录",
+        help="评估结果根目录（内部会再创建 run_id 子目录）",
+    )
+    parser.add_argument(
+        "--experiment_name",
+        type=str,
+        default="phaseC_scheduler_ablation_synth",
+        help="评估实验名称，用于目录分组",
+    )
+    parser.add_argument("--run_name", type=str, default=None, help="评估 run 的别名")
+    parser.add_argument("--run_id", type=str, default=None, help="覆盖自动生成的评估 run_id")
+    parser.add_argument(
+        "--log_experiment",
+        type=str,
+        default="stage1_multi_seed",
+        help="训练日志所属实验名称，用于推断新目录结构",
+    )
+    parser.add_argument(
+        "--log_run_id",
+        type=str,
+        default=None,
+        help="训练 run_id（若缺省则使用最新目录或旧版路径）",
     )
     return parser.parse_args()
 
@@ -201,24 +223,37 @@ def main() -> None:
     datasets = parse_str_list(args.datasets)
     seeds = parse_int_list(args.seeds)
     model_variants = parse_str_list(args.model_variants)
-    logs_root = Path(args.logs_root)
     synth_root = Path(args.synthetic_root)
-    output_dir = Path(args.output_dir)
-    ensure_dir(output_dir)
+    experiment_run = create_experiment_run(
+        experiment_name=args.experiment_name,
+        results_root=args.output_dir,
+        logs_root=args.logs_root,
+        run_name=args.run_name,
+        run_id=args.run_id,
+    )
+    output_dir = experiment_run.summary_dir()
+    print(f"[run] {experiment_run.describe()} -> {output_dir}")
     run_records: List[Dict[str, float]] = []
 
     for dataset in datasets:
         for model_variant in model_variants:
             for seed in seeds:
-                log_path = logs_root / dataset / f"{dataset}__{model_variant}__seed{seed}.csv"
-                if not log_path.exists():
-                    print(f"[warn] missing log {log_path}, skip")
+                log_path = resolve_log_path(
+                    logs_root=args.logs_root,
+                    experiment_name=args.log_experiment,
+                    dataset_name=dataset,
+                    model_variant=model_variant,
+                    seed=seed,
+                    run_id=args.log_run_id,
+                )
+                if not log_path:
+                    print(f"[warn] missing log for dataset={dataset} model={model_variant} seed={seed}, skip")
                     continue
                 df = pd.read_csv(log_path)
                 if df.empty:
                     print(f"[warn] empty log {log_path}, skip")
                     continue
-                drifts, meta_path = load_meta(dataset, seed, synth_root)
+                drifts, _ = load_meta(dataset, seed, synth_root)
                 if not drifts:
                     print(f"[warn] missing meta or drifts for {dataset} seed={seed}")
                 record = summarize_run(

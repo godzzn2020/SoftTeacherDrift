@@ -13,6 +13,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+from soft_drift.utils.run_paths import ExperimentRun, create_experiment_run
 
 @dataclass
 class RealDatasetConfig:
@@ -115,6 +116,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--device", type=str, default="cuda", help="运行设备（传给 run_experiment）")
     parser.add_argument("--logs_root", type=str, default="logs", help="日志输出根目录")
+    parser.add_argument("--results_root", type=str, default="results", help="结果输出根目录")
+    parser.add_argument("--run_name", type=str, default=None, help="附加到 run_id 的别名")
+    parser.add_argument("--run_id", type=str, default=None, help="覆盖自动生成的 run_id")
     parser.add_argument(
         "--severity_scheduler_scale",
         type=float,
@@ -136,6 +140,7 @@ def build_command(
     monitor_preset: str,
     device: str,
     severity_scheduler_scale: float,
+    experiment_run: ExperimentRun,
 ) -> List[str]:
     cmd = [
         sys.executable,
@@ -154,6 +159,14 @@ def build_command(
         device,
         "--log_path",
         str(log_path),
+        "--results_root",
+        str(experiment_run.results_root),
+        "--logs_root",
+        str(experiment_run.logs_root),
+        "--experiment_name",
+        experiment_run.experiment_name,
+        "--run_id",
+        experiment_run.run_id,
         "--batch_size",
         str(cfg.batch_size),
         "--labeled_ratio",
@@ -182,16 +195,15 @@ def run_dataset(
     cfg: RealDatasetConfig,
     model_variants: List[str],
     seeds: List[int],
-    logs_root: Path,
     monitor_preset: str,
     device: str,
     severity_scheduler_scale: float,
+    experiment_run: ExperimentRun,
 ) -> None:
-    dataset_log_dir = logs_root / cfg.dataset_name
-    dataset_log_dir.mkdir(parents=True, exist_ok=True)
     for variant in model_variants:
         for seed in seeds:
-            log_path = dataset_log_dir / f"{cfg.dataset_name}__{variant}__seed{seed}.csv"
+            run_paths = experiment_run.prepare_dataset_run(cfg.dataset_name, variant, seed)
+            log_path = run_paths.log_csv_path()
             cmd = build_command(
                 cfg,
                 variant,
@@ -200,15 +212,24 @@ def run_dataset(
                 monitor_preset,
                 device,
                 severity_scheduler_scale,
+                experiment_run,
             )
             print(f"[run] dataset={cfg.dataset_name} model={variant} seed={seed} log={log_path}")
             subprocess.run(cmd, check=True)
+            run_paths.update_legacy_pointer()
 
 
 def main() -> None:
     args = parse_args()
     datasets = [d.strip() for d in args.datasets.split(",") if d.strip()]
-    logs_root = Path(args.logs_root)
+    experiment_run = create_experiment_run(
+        experiment_name="run_real_adaptive",
+        results_root=args.results_root,
+        logs_root=args.logs_root,
+        run_name=args.run_name,
+        run_id=args.run_id,
+    )
+    print(f"[run] run_real_adaptive run_id={experiment_run.run_id}")
     model_variants = parse_model_variants(args.model_variants)
     for name in datasets:
         if name not in REAL_DATASETS:
@@ -220,10 +241,10 @@ def main() -> None:
             cfg,
             model_variants,
             args.seeds,
-            logs_root,
             args.monitor_preset,
             args.device,
             args.severity_scheduler_scale,
+            experiment_run,
         )
     print("[done] all requested runs finished.")
 

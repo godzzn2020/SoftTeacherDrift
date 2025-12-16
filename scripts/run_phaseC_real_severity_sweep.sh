@@ -10,6 +10,7 @@ LOGS_ROOT="logs"
 MONITOR="error_divergence_ph_meta"
 DEVICE="cuda"
 SEVERITY_SCALES=("0.5" "1.0" "2.0")
+TRAIN_RUN_ID="<fill-training-run-id>"
 
 MODEL_VARIANTS=("ts_drift_adapt")
 
@@ -44,6 +45,8 @@ VARIANT_CSV=$(IFS=','; printf "%s" "${MODEL_VARIANTS[*]}")
 echo "[info] Evaluating real-stream Phase C severity sweep"
 python evaluation/phaseC_scheduler_ablation_real.py \
   --logs_root "${LOGS_ROOT}" \
+  --log_experiment run_real_adaptive \
+  --log_run_id "${TRAIN_RUN_ID}" \
   --datasets "${REAL_DATASETS}" \
   --model_variants "${VARIANT_CSV}" \
   --seeds "${SEEDS}" \

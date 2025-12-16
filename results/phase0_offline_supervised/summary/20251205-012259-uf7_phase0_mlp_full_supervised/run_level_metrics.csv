@@ -1,0 +1,2 @@
+dataset_name,seed,labeled_ratio,train_samples,train_labeled_samples,val_samples,test_samples,best_epoch,best_val_acc,test_acc,max_epochs,batch_size,optimizer,lr,weight_decay,hidden_dim,num_layers,dropout,activation,use_batchnorm
+Airlines,3,1.0,323630,323630,107876,107876,42,0.6278783047202343,0.5963235566761838,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True

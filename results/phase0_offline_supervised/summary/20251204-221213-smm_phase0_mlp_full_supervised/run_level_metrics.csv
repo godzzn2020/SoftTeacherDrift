@@ -1,0 +1,4 @@
+dataset_name,seed,labeled_ratio,train_samples,train_labeled_samples,val_samples,test_samples,best_epoch,best_val_acc,test_acc,max_epochs,batch_size,optimizer,lr,weight_decay,hidden_dim,num_layers,dropout,activation,use_batchnorm
+Electricity,1,1.0,27187,27187,9062,9062,6,0.6698300595894946,0.6963142794085191,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True
+Electricity,2,1.0,27187,27187,9062,9062,5,0.6630986537188258,0.7167291988523504,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True
+Electricity,3,1.0,27187,27187,9062,9062,1,0.6521739130434783,0.7099977929816818,50,1024,AdamW,0.001,1e-05,512,4,0.2,relu,True

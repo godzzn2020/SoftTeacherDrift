@@ -1,0 +1,22 @@
+{
+  "dataset_name": "Airlines",
+  "seed": 1,
+  "labeled_ratio": 1.0,
+  "train_samples": 323630,
+  "train_labeled_samples": 323630,
+  "val_samples": 107876,
+  "test_samples": 107876,
+  "best_epoch": 38,
+  "best_val_acc": 0.6292965997997702,
+  "test_acc": 0.5952389780859505,
+  "max_epochs": 50,
+  "batch_size": 1024,
+  "optimizer": "AdamW",
+  "lr": 0.001,
+  "weight_decay": 1e-05,
+  "hidden_dim": 512,
+  "num_layers": 4,
+  "dropout": 0.2,
+  "activation": "relu",
+  "use_batchnorm": true
+}

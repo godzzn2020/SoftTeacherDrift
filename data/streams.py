@@ -14,6 +14,8 @@ import pandas as pd
 from river import stream as rv_stream
 from river.datasets import synth, Insects
 
+from datasets.preprocessing import load_tabular_csv_dataset
+
 
 SEA_CONFIGS = {
     "sea_abrupt4": {"concept_ids": [0, 1, 2, 3, 0], "concept_length": 10000},
@@ -277,33 +279,19 @@ def _build_uspds_csv_stream(
     csv_path: str,
     label_col: Optional[str],
 ) -> StreamInfo:
-    df = pd.read_csv(csv_path)
-    if df.empty:
-        raise ValueError(f"CSV 文件 {csv_path} 为空")
-    target_col = label_col or df.columns[-1]
-    if target_col not in df.columns:
-        raise ValueError(f"label 列 {target_col} 不存在")
-    feature_cols = [c for c in df.columns if c != target_col]
-    X = df[feature_cols].copy()
-    for col in feature_cols:
-        if not pd.api.types.is_numeric_dtype(X[col]):
-            X[col] = pd.Categorical(X[col]).codes.astype(float)
-    y = df[target_col]
-    if not pd.api.types.is_numeric_dtype(y):
-        y = pd.Categorical(y).codes.astype(int)
+    tabular = load_tabular_csv_dataset(csv_path=csv_path, label_col=label_col)
 
     def iterator() -> Iterator[Tuple[Dict[str, float], Any]]:
-        return rv_stream.iter_pandas(X=X, y=y)
+        return rv_stream.iter_pandas(X=tabular.features, y=tabular.labels)
 
-    classes = list(pd.unique(y))
     return StreamInfo(
         iterator_fn=iterator,
-        n_features=len(feature_cols),
-        n_classes=len(classes),
+        n_features=len(tabular.feature_names),
+        n_classes=len(tabular.classes),
         dataset_type="uspds_csv",
         dataset_name=dataset_name,
-        feature_names=list(feature_cols),
-        classes=classes,
+        feature_names=tabular.feature_names,
+        classes=tabular.classes,
     )
 
 

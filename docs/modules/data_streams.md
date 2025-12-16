@@ -7,7 +7,7 @@
 ## 支持的数据集类型
 
 - **合成流**：`sea`、`hyperplane`、`sine`、`stagger` 四类 abrupt 合成器，既可即时生成，也可通过 `generate_and_save_synth_stream` 落盘后用 `synth_saved` 载入。
-- **真实 CSV 流**：`uspds_csv` 读取任意 CSV；`insects_real` 针对 `datasets/real/INSECTS_abrupt_balanced.csv`，同时配套 meta（0-based 漂移位置）。
+- **真实 CSV 流**：`uspds_csv` 读取任意 CSV；`insects_real` 针对 `datasets/real/INSECTS_abrupt_balanced.csv`，同时配套 meta（0-based 漂移位置）。两者共享 `datasets/preprocessing.py` 中的特征/标签编码逻辑（所有类别型特征转浮点、标签一律重新编号为 `[0, C)`），与 Phase0 离线数据划分保持一致。
 - **river 内置**：`insects_river` 直接使用 river 的 `Insects` 数据集。
 - **落盘流**：`sea_saved`、`hyperplane_saved`、`synth_saved` 统一走 `load_saved_synth_stream`，从 `data/synthetic/{dataset}/` 读取 parquet + meta。
 

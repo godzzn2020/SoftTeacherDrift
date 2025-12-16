@@ -21,6 +21,7 @@ from experiments.first_stage_experiments import (
     ExperimentConfig,
     run_experiment as run_ts_experiment,
 )
+from soft_drift.utils.run_paths import create_experiment_run
 
 
 def parse_args() -> argparse.Namespace:
@@ -80,11 +81,29 @@ def parse_args() -> argparse.Namespace:
         default=1.0,
         help="全局 severity-aware 调度缩放，0 关闭，1 默认，>1 更激进",
     )
+    parser.add_argument("--results_root", type=str, default="results", help="结果输出根目录")
+    parser.add_argument("--logs_root", type=str, default="logs", help="日志根目录（用于自动路径时）")
+    parser.add_argument("--experiment_name", type=str, default="run_experiment", help="实验名称前缀")
+    parser.add_argument("--run_name", type=str, default=None, help="自定义 run 名称")
+    parser.add_argument("--run_id", type=str, default=None, help="覆盖自动生成的 run_id")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    log_path = args.log_path
+    exp_run = None
+    if not log_path:
+        exp_run = create_experiment_run(
+            experiment_name=args.experiment_name,
+            results_root=args.results_root,
+            logs_root=args.logs_root,
+            run_name=args.run_name,
+            run_id=args.run_id,
+        )
+        dataset_run = exp_run.prepare_dataset_run(args.dataset_name, args.model_variant, args.seed)
+        log_path = str(dataset_run.log_csv_path())
+        print(f"[run] {exp_run.describe()} log -> {log_path}")
     config = ExperimentConfig(
         dataset_type=args.dataset_type,
         dataset_name=args.dataset_name,
@@ -101,7 +120,7 @@ def main() -> None:
         seed=args.seed,
         hidden_dims=parse_hidden_dims(args.hidden_dims),
         dropout=args.dropout,
-        log_path=args.log_path,
+        log_path=log_path,
         monitor_preset=args.monitor_preset,
         severity_scheduler_scale=args.severity_scheduler_scale,
     )
