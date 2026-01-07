@@ -346,10 +346,12 @@ python experiments/analyze_abrupt_results.py \
 | `--batch_size`, `--labeled_ratio`, `--n_steps`, `--hidden_dims`, `--dropout` | 训练配置 |
 | `--initial_alpha`, `--initial_lr`, `--lambda_u`, `--tau` | Teacher-Student 超参 |
 | `--monitor_preset` | `none` / `error_ph_meta` / `divergence_ph_meta` / `error_divergence_ph_meta` |
-| `--trigger_mode` | `or` / `k_of_n` / `weighted`（多 detector 融合触发） |
+| `--trigger_mode` | `or` / `k_of_n` / `weighted` / `two_stage`（多 detector 融合触发） |
 | `--trigger_k` | `k_of_n` 的 k（至少 k 个 detector 同时触发） |
 | `--trigger_weights`, `--trigger_threshold` | `weighted` 的权重与阈值 |
+| `--confirm_window` | `two_stage` 的 confirm window（候选后窗口内确认） |
 | `--use_severity_v2` | 启用 Severity-Aware v2（carry+decay 持续影响调度） |
+| `--severity_gate` | `none` / `confirmed_only`（仅高置信 drift 更新 carry/freeze） |
 | `--entropy_mode` | `overconfident` / `uncertain` / `abs` |
 | `--severity_decay`, `--freeze_baseline_steps` | v2 的 decay 与 baseline 冻结步数 |
 | `--log_path` | CSV 输出路径 |
@@ -452,8 +454,8 @@ python experiments/summarize_online_results.py \
 | `--datasets` / `--models` | 逗号分隔列表 | `sea_abrupt4,sine_abrupt4,stagger_abrupt3` / `baseline_student,mean_teacher,ts_drift_adapt,ts_drift_adapt_severity` |
 | `--seeds` | 多个 seed | `1 2 3 4 5` |
 | `--monitor_preset` | 统一传给 run_experiment | `error_ph_meta` |
-| `--trigger_mode` / `--trigger_k` / `--trigger_weights` / `--trigger_threshold` | 透传给 run_experiment（监控融合策略） | `or` / `2` / 空 / `0.5` |
-| `--use_severity_v2` / `--entropy_mode` / `--severity_decay` / `--freeze_baseline_steps` | 透传给 run_experiment（Severity-Aware v2） | 关闭 / `overconfident` / `0.95` / `0` |
+| `--trigger_mode` / `--trigger_k` / `--trigger_weights` / `--trigger_threshold` / `--confirm_window` | 透传给 run_experiment（监控融合策略；two_stage 需 confirm_window） | `or` / `2` / 空 / `0.5` / `200` |
+| `--use_severity_v2` / `--severity_gate` / `--entropy_mode` / `--severity_decay` / `--freeze_baseline_steps` | 透传给 run_experiment（Severity-Aware v2 + gating） | 关闭 / `none` / `overconfident` / `0.95` / `0` |
 | `--device` | run_experiment 的 --device | `cuda` |
 | `--gpus` / `--max_jobs_per_gpu` | 并行运行时的 GPU 设置 | `0,1` / `2`（填 `none` 可顺序运行） |
 | `--logs_root` | 日志根目录 | `logs` |
@@ -509,8 +511,8 @@ python experiments/stage1_multi_seed.py \
 | `--seeds` | 多个 seed | `1 2 3` |
 | `--model_variants` | 需要运行的模型列表 | `ts_drift_adapt` |
 | `--monitor_preset` | 传给 run_experiment 的漂移检测配置 | `error_divergence_ph_meta` |
-| `--trigger_mode` / `--trigger_k` / `--trigger_weights` / `--trigger_threshold` | 透传给 run_experiment（监控融合策略） | `or` / `2` / 空 / `0.5` |
-| `--use_severity_v2` / `--entropy_mode` / `--severity_decay` / `--freeze_baseline_steps` | 透传给 run_experiment（Severity-Aware v2） | 关闭 / `overconfident` / `0.95` / `0` |
+| `--trigger_mode` / `--trigger_k` / `--trigger_weights` / `--trigger_threshold` / `--confirm_window` | 透传给 run_experiment（监控融合策略；two_stage 需 confirm_window） | `or` / `2` / 空 / `0.5` / `200` |
+| `--use_severity_v2` / `--severity_gate` / `--entropy_mode` / `--severity_decay` / `--freeze_baseline_steps` | 透传给 run_experiment（Severity-Aware v2 + gating） | 关闭 / `none` / `overconfident` / `0.95` / `0` |
 | `--device` | 训练设备 | `cuda` |
 | `--logs_root` | 日志输出根目录 | `logs` |
 
@@ -525,6 +527,59 @@ python experiments/run_real_adaptive.py \
   --model_variants ts_drift_adapt,ts_drift_adapt_severity \
   --monitor_preset error_divergence_ph_meta \
   --device cuda
+```
+
+### experiments/trackF_weighted_threshold_sweep.py
+
+- 作用：Track F 的 weighted 阈值扫描（θ sweep），在 `sea_abrupt4`/`stagger_abrupt3` 上输出逐 run 指标表，并在 `scripts/figures/` 生成 trade-off 曲线图。
+- 输出：
+  - `scripts/TRACKF_THRESHOLD_SWEEP.csv`
+  - `scripts/figures/trackF_theta_mdr_mtfa.png`
+  - `scripts/figures/trackF_theta_acc_final.png`
+- 示例：
+
+```bash
+python experiments/trackF_weighted_threshold_sweep.py \
+  --datasets sea_abrupt4,stagger_abrupt3 \
+  --seeds 1 2 3 4 5 \
+  --thetas 0.3 0.4 0.5 0.6 0.7 \
+  --monitor_preset error_divergence_ph_meta
+```
+
+### experiments/trackG_two_stage_eval.py
+
+- 作用：Track G 的三组对照：`or` vs `weighted` vs `two_stage(candidate OR → confirm weighted)`，并额外统计 candidate/confirmed 计数与确认延迟。
+- 输出：`scripts/TRACKG_TWO_STAGE.csv`
+- 示例：
+
+```bash
+python experiments/trackG_two_stage_eval.py \
+  --datasets sea_abrupt4,stagger_abrupt3 \
+  --seeds 1 2 3 4 5 \
+  --theta_weighted 0.5 \
+  --theta_confirm 0.5 \
+  --confirm_window 200
+```
+
+### experiments/trackH_severity_gating_insects.py
+
+- 作用：Track H（最小验证）：在 INSECTS（默认 seeds=1/3/5）上对比 v2 vs v2+gate（`confirmed_only`），检验 gating 是否缓解 v2 的负迁移。
+- 输出：`scripts/TRACKH_SEVERITY_GATING.csv`
+- 示例：
+
+```bash
+python experiments/trackH_severity_gating_insects.py \
+  --seeds 1 3 5 \
+  --theta_confirm 0.6
+```
+
+### scripts/summarize_next_stage.py
+
+- 作用：读取 `scripts/TRACKF_THRESHOLD_SWEEP.csv` / `scripts/TRACKG_TWO_STAGE.csv`（以及可选的 Track H CSV），自动生成：`scripts/NEXT_STAGE_REPORT.md`。
+- 示例：
+
+```bash
+python scripts/summarize_next_stage.py
 ```
 
 ### experiments/phase0_offline_supervised.py

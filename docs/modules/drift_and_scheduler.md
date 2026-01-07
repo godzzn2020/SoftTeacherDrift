@@ -20,6 +20,10 @@
     - `k_of_n`：至少 `k` 个 detector 同时触发才 `drift_flag=True`（例如 `k=2` 更保守）。
     - `weighted`：计算 `vote_score = Σ w_i * I(detector_i_drift)`，当 `vote_score >= threshold` 才触发。
       - 建议默认权重：`error_rate=0.5, divergence=0.3, teacher_entropy=0.2`；阈值可从 `0.5` 起调（更大更保守）。
+    - `two_stage`：两阶段触发（candidate→confirm）
+      - candidate：使用 OR（任一 detector 触发即候选）；
+      - confirm：候选触发后在 `confirm_window` 步内，若 `vote_score >= threshold` 则确认；
+      - 只有 confirmed 才置 `drift_flag=1`（候选通过 `candidate_flag` 记录），并记录 `confirm_delay`（candidate→confirm 的步数）。
   - `update(values, step)`：
     - 通过 `SIGNAL_ALIASES` 从 `values` 中抽取对应的信号（例如 `"error_rate" → student_error_rate"`，`"divergence" → divergence_js`）；
     - 调用 river 的 `detector.update(value)`；

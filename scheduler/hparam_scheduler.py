@@ -89,7 +89,9 @@ def update_hparams_with_severity(
         drift_flag=drift_flag,
         severity=detector_severity,
     )
-    if not drift_flag or severity_norm <= 0.0:
+    # v1: severity_norm 只在 drift_flag=1 时为正，因此行为与旧版一致；
+    # v2: 允许 severity_norm（如 severity_carry）在 drift 后窗口持续为正，从而持续缩放超参。
+    if severity_norm <= 0.0:
         return base_hparams, regime
     cfg = config or SeveritySchedulerConfig()
     scale = max(0.0, cfg.severity_scale)

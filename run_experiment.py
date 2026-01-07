@@ -72,7 +72,7 @@ def parse_args() -> argparse.Namespace:
         "--trigger_mode",
         type=str,
         default="or",
-        choices=["or", "k_of_n", "weighted"],
+        choices=["or", "k_of_n", "weighted", "two_stage"],
         help="多 detector 融合触发策略（默认 or）",
     )
     parser.add_argument(
@@ -86,6 +86,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.5,
         help="trigger_mode=weighted 时的阈值（vote_score >= threshold 触发）",
+    )
+    parser.add_argument(
+        "--confirm_window",
+        type=int,
+        default=200,
+        help="trigger_mode=two_stage 时的 confirm_window（候选触发后在该窗口内确认）",
     )
     parser.add_argument(
         "--trigger_weights",
@@ -110,6 +116,13 @@ def parse_args() -> argparse.Namespace:
         "--use_severity_v2",
         action="store_true",
         help="启用 Severity-Aware v2（漂移后 severity 以 carry+decay 形式持续影响调度）",
+    )
+    parser.add_argument(
+        "--severity_gate",
+        type=str,
+        default="none",
+        choices=["none", "confirmed_only"],
+        help="severity v2 的 gating：confirmed_only 表示仅在票分 >= trigger_threshold 的 drift 才更新 carry/freeze",
     )
     parser.add_argument(
         "--entropy_mode",
@@ -176,7 +189,9 @@ def main() -> None:
         trigger_k=int(args.trigger_k),
         trigger_threshold=float(args.trigger_threshold),
         trigger_weights=parse_trigger_weights(args.trigger_weights),
+        confirm_window=int(args.confirm_window),
         use_severity_v2=bool(args.use_severity_v2),
+        severity_gate=str(args.severity_gate),
         entropy_mode=str(args.entropy_mode),
         severity_decay=float(args.severity_decay),
         freeze_baseline_steps=int(args.freeze_baseline_steps),

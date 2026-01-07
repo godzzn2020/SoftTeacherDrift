@@ -46,7 +46,9 @@ class Args:
     trigger_k: int
     trigger_threshold: float
     trigger_weights: str
+    confirm_window: int
     use_severity_v2: bool
+    severity_gate: str
     entropy_mode: str
     severity_decay: float
     freeze_baseline_steps: int
@@ -108,7 +110,7 @@ def parse_args() -> Args:
         "--trigger_mode",
         type=str,
         default="or",
-        choices=["or", "k_of_n", "weighted"],
+        choices=["or", "k_of_n", "weighted", "two_stage"],
         help="多 detector 融合触发策略（默认 or）",
     )
     parser.add_argument("--trigger_k", type=int, default=2, help="trigger_mode=k_of_n 时的 k")
@@ -119,7 +121,15 @@ def parse_args() -> Args:
         default="",
         help="trigger_mode=weighted 时权重（key=value 逗号分隔，空表示默认）",
     )
+    parser.add_argument("--confirm_window", type=int, default=200, help="trigger_mode=two_stage 的 confirm_window")
     parser.add_argument("--use_severity_v2", action="store_true", help="启用 Severity-Aware v2（carry+decay）")
+    parser.add_argument(
+        "--severity_gate",
+        type=str,
+        default="none",
+        choices=["none", "confirmed_only"],
+        help="severity v2 gating（confirmed_only 仅高置信 drift 更新 carry/freeze）",
+    )
     parser.add_argument(
         "--entropy_mode",
         type=str,
@@ -199,7 +209,9 @@ def parse_args() -> Args:
         trigger_k=int(ns.trigger_k),
         trigger_threshold=float(ns.trigger_threshold),
         trigger_weights=str(ns.trigger_weights),
+        confirm_window=int(ns.confirm_window),
         use_severity_v2=bool(ns.use_severity_v2),
+        severity_gate=str(ns.severity_gate),
         entropy_mode=str(ns.entropy_mode),
         severity_decay=float(ns.severity_decay),
         freeze_baseline_steps=int(ns.freeze_baseline_steps),
@@ -237,7 +249,9 @@ def build_command(
     trigger_k: int,
     trigger_threshold: float,
     trigger_weights: str,
+    confirm_window: int,
     use_severity_v2: bool,
+    severity_gate: str,
     entropy_mode: str,
     severity_decay: float,
     freeze_baseline_steps: int,
@@ -265,6 +279,8 @@ def build_command(
         str(trigger_k),
         "--trigger_threshold",
         str(trigger_threshold),
+        "--confirm_window",
+        str(confirm_window),
         "--device",
         device,
         "--log_path",
@@ -305,6 +321,7 @@ def build_command(
         cmd.extend(["--trigger_weights", trigger_weights])
     if use_severity_v2:
         cmd.append("--use_severity_v2")
+        cmd.extend(["--severity_gate", str(severity_gate)])
         cmd.extend(["--entropy_mode", str(entropy_mode)])
         cmd.extend(["--severity_decay", str(severity_decay)])
         cmd.extend(["--freeze_baseline_steps", str(freeze_baseline_steps)])
@@ -426,7 +443,9 @@ def create_tasks(
     trigger_k: int,
     trigger_threshold: float,
     trigger_weights: str,
+    confirm_window: int,
     use_severity_v2: bool,
+    severity_gate: str,
     entropy_mode: str,
     severity_decay: float,
     freeze_baseline_steps: int,
@@ -449,7 +468,9 @@ def create_tasks(
                     trigger_k,
                     trigger_threshold,
                     trigger_weights,
+                    confirm_window,
                     use_severity_v2,
+                    severity_gate,
                     entropy_mode,
                     severity_decay,
                     freeze_baseline_steps,
@@ -546,7 +567,9 @@ def main() -> None:
         trigger_k=args.trigger_k,
         trigger_threshold=args.trigger_threshold,
         trigger_weights=args.trigger_weights,
+        confirm_window=args.confirm_window,
         use_severity_v2=args.use_severity_v2,
+        severity_gate=args.severity_gate,
         entropy_mode=args.entropy_mode,
         severity_decay=args.severity_decay,
         freeze_baseline_steps=args.freeze_baseline_steps,

@@ -43,8 +43,10 @@ class TrainingConfig:
     trigger_k: int = 2
     trigger_threshold: float = 0.5
     trigger_weights: str = ""
+    confirm_window: int = 200
     use_severity_scheduler: bool = False
     use_severity_v2: bool = False
+    severity_gate: str = "none"
     entropy_mode: str = "overconfident"
     severity_decay: float = 0.95
     freeze_baseline_steps: int = 0
@@ -189,6 +191,10 @@ def run_training_loop(
         monitor_vote_count = getattr(drift_monitor, "last_vote_count", None)
         monitor_vote_score = getattr(drift_monitor, "last_vote_score", None)
         monitor_fused_severity = getattr(drift_monitor, "last_fused_severity", None)
+        candidate_flag = bool(getattr(drift_monitor, "last_candidate_flag", drift_flag))
+        confirm_delay = int(getattr(drift_monitor, "last_confirm_delay", -1))
+        candidate_count_total = int(getattr(drift_monitor, "candidate_count_total", 0))
+        confirmed_count_total = int(getattr(drift_monitor, "confirmed_count_total", 0))
 
         if severity_calibrator:
             if baseline_freeze_remaining > 0:
@@ -201,24 +207,29 @@ def run_training_loop(
                 )
         severity_raw = 0.0
         severity_norm = 0.0
+        severity_confirmed = True
+        if str(config.severity_gate).lower() == "confirmed_only":
+            vote = float(monitor_vote_score) if monitor_vote_score is not None else 0.0
+            severity_confirmed = bool(drift_flag) and vote >= float(config.trigger_threshold)
         if severity_calibrator and drift_flag:
             severity_raw, severity_norm = severity_calibrator.compute_severity(
                 signals["error_rate"],
                 signals["divergence"],
                 signals["teacher_entropy"],
             )
-        if drift_flag and severity_calibrator and config.freeze_baseline_steps > 0:
+        severity_norm_apply = severity_norm if severity_confirmed else 0.0
+        if drift_flag and severity_calibrator and config.freeze_baseline_steps > 0 and severity_norm_apply > 0.0:
             baseline_freeze_remaining = max(baseline_freeze_remaining, int(config.freeze_baseline_steps))
 
         if config.use_severity_v2:
             decay = float(config.severity_decay)
             if not (0.0 <= decay <= 1.0):
                 decay = min(1.0, max(0.0, decay))
-            severity_carry = max(severity_carry * decay, severity_norm)
+            severity_carry = max(severity_carry * decay, severity_norm_apply)
             severity_for_scheduler = severity_carry
         else:
-            severity_carry = severity_norm
-            severity_for_scheduler = severity_norm
+            severity_carry = severity_norm_apply
+            severity_for_scheduler = severity_norm_apply
         if config.use_severity_scheduler:
             current_hparams, regime = update_hparams_with_severity(
                 scheduler_state,
@@ -256,6 +267,7 @@ def run_training_loop(
                 "trigger_k": int(config.trigger_k),
                 "trigger_threshold": float(config.trigger_threshold),
                 "trigger_weights": config.trigger_weights,
+                "confirm_window": int(config.confirm_window),
                 "severity_scheduler_scale": float(config.severity_scheduler_scale),
                 "metric_accuracy": acc_value,
                 "metric_kappa": kappa_value,
@@ -263,6 +275,10 @@ def run_training_loop(
                 "teacher_entropy": signals["teacher_entropy"],
                 "divergence_js": signals["divergence"],
                 "drift_flag": int(drift_flag),
+                "candidate_flag": int(candidate_flag),
+                "candidate_count_total": candidate_count_total,
+                "confirmed_count_total": confirmed_count_total,
+                "confirm_delay": confirm_delay,
                 "monitor_severity": monitor_severity,
                 "monitor_fused_severity": monitor_fused_severity if monitor_fused_severity is not None else 0.0,
                 "monitor_vote_count": int(monitor_vote_count) if monitor_vote_count is not None else 0,
@@ -271,6 +287,8 @@ def run_training_loop(
                 "drift_severity": severity_norm if drift_flag else 0.0,
                 "severity_carry": severity_carry,
                 "use_severity_v2": int(bool(config.use_severity_v2)),
+                "severity_gate": str(config.severity_gate),
+                "severity_confirmed": int(bool(severity_confirmed)) if drift_flag else 0,
                 "entropy_mode": config.entropy_mode,
                 "decay": float(config.severity_decay),
                 "freeze_baseline_steps": int(config.freeze_baseline_steps),

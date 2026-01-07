@@ -126,6 +126,7 @@ class DriftMonitor:
     trigger_k: int = 2
     trigger_weights: Optional[Dict[str, float]] = None
     trigger_threshold: float = 0.5
+    confirm_window: int = 200
     history: List[int] = field(default_factory=list)
     last_drift_step: int = -1
 
@@ -135,16 +136,26 @@ class DriftMonitor:
         self.last_vote_count: int = 0
         self.last_vote_score: float = 0.0
         self.last_fused_severity: float = 0.0
+        # two-stage state
+        self._pending_candidate_step: Optional[int] = None
+        self._pending_confirm_deadline_step: Optional[int] = None
+        self.last_candidate_flag: bool = False
+        self.last_confirm_delay: int = -1
+        self.candidate_history: List[int] = []
+        self.confirmed_history: List[int] = []
+        self.candidate_count_total: int = 0
+        self.confirmed_count_total: int = 0
 
     def update(self, values: Dict[str, float], step: int) -> Tuple[bool, float]:
         """输入最新批次统计，返回漂移标志与严重度。"""
         trigger_mode = (self.trigger_mode or "or").lower()
-        if trigger_mode not in {"or", "k_of_n", "weighted"}:
+        if trigger_mode not in {"or", "k_of_n", "weighted", "two_stage"}:
             trigger_mode = "or"
         k = int(self.trigger_k) if self.trigger_k is not None else 2
         k = max(1, k)
         weights = self.trigger_weights or {"error_rate": 0.5, "divergence": 0.3, "teacher_entropy": 0.2}
         threshold = float(self.trigger_threshold) if self.trigger_threshold is not None else 0.5
+        confirm_window = max(1, int(self.confirm_window))
 
         monitor_severity = 0.0
         fused_severity = 0.0
@@ -167,16 +178,41 @@ class DriftMonitor:
                 monitor_severity = max(monitor_severity, delta_on_drift)
                 self._prev_values_on_drift[name] = value
 
+        candidate_flag = vote_count >= 1
+        drift_flag = False
+        confirm_delay = -1
+
         if trigger_mode == "or":
-            drift_flag = vote_count >= 1
+            drift_flag = candidate_flag
         elif trigger_mode == "k_of_n":
             drift_flag = vote_count >= k
-        else:  # weighted
+        elif trigger_mode == "weighted":
             drift_flag = vote_score >= threshold
+        else:  # two_stage: candidate OR -> confirm weighted within window
+            # clear expired pending
+            if self._pending_confirm_deadline_step is not None and step > self._pending_confirm_deadline_step:
+                self._pending_candidate_step = None
+                self._pending_confirm_deadline_step = None
+            # register candidate
+            if candidate_flag and self._pending_candidate_step is None:
+                self._pending_candidate_step = step
+                self._pending_confirm_deadline_step = step + confirm_window
+                self.candidate_history.append(step)
+                self.candidate_count_total += 1
+            # confirm
+            if self._pending_candidate_step is not None and vote_score >= threshold:
+                drift_flag = True
+                confirm_delay = max(0, step - self._pending_candidate_step)
+                self._pending_candidate_step = None
+                self._pending_confirm_deadline_step = None
+                self.confirmed_history.append(step)
+                self.confirmed_count_total += 1
 
         self.last_vote_count = vote_count
         self.last_vote_score = float(vote_score)
         self.last_fused_severity = float(fused_severity)
+        self.last_candidate_flag = bool(candidate_flag)
+        self.last_confirm_delay = int(confirm_delay)
 
         if drift_flag:
             self.history.append(step)
@@ -191,6 +227,7 @@ def build_default_monitor(
     trigger_k: int = 2,
     trigger_weights: Optional[Dict[str, float]] = None,
     trigger_threshold: float = 0.5,
+    confirm_window: int = 200,
 ) -> DriftMonitor:
     """根据预设构建监控器。"""
     if preset == "none":
@@ -200,6 +237,7 @@ def build_default_monitor(
             trigger_k=trigger_k,
             trigger_weights=trigger_weights,
             trigger_threshold=trigger_threshold,
+            confirm_window=confirm_window,
         )
     factory = MONITOR_PRESETS.get(preset)
     if factory is None:
@@ -211,4 +249,5 @@ def build_default_monitor(
         trigger_k=trigger_k,
         trigger_weights=trigger_weights,
         trigger_threshold=trigger_threshold,
+        confirm_window=confirm_window,
     )

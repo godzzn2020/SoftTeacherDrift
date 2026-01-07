@@ -26,9 +26,13 @@
 - **漂移信号**：`student_error_rate`, `teacher_entropy`, `divergence_js`.
 - **检测输出**：
   - `monitor_preset`, `trigger_mode`, `trigger_k`, `trigger_threshold`, `trigger_weights`（用于复现实验配置）；
+  - `confirm_window`（仅 `trigger_mode=two_stage` 使用）；
   - `drift_flag`（0/1）, `monitor_severity`（原口径：仅在 detector 触发时的 max-delta），`monitor_fused_severity`（每步 max-delta），`monitor_vote_count`, `monitor_vote_score`；
+  - `candidate_flag`（0/1，two_stage 的候选触发）、`confirm_delay`（candidate→confirm 的步数，非 two_stage 为 -1）；
+  - `candidate_count_total` / `confirmed_count_total`（two_stage 的累计计数，便于离线汇总）；
   - `drift_severity_raw`（SeverityCalibrator 原值），`drift_severity`（压缩到 [0,1] 的严重度），`severity_carry`（v2 的持续严重度），`regime`.
 - **严重度配置**：`severity_scheduler_scale`, `use_severity_v2`, `entropy_mode`, `decay`, `freeze_baseline_steps`。
+- **严重度 gating（可选）**：`severity_gate`（`none/confirmed_only`）、`severity_confirmed`（0/1）。
 - **调参**：`alpha`, `lr`, `lambda_u`, `tau`.
 - **损失与时间**：`supervised_loss`, `unsupervised_loss`, `timestamp`.
 

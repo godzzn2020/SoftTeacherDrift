@@ -118,7 +118,7 @@ def parse_args() -> argparse.Namespace:
         "--trigger_mode",
         type=str,
         default="or",
-        choices=["or", "k_of_n", "weighted"],
+        choices=["or", "k_of_n", "weighted", "two_stage"],
         help="多 detector 融合触发策略（默认 or）",
     )
     parser.add_argument("--trigger_k", type=int, default=2, help="trigger_mode=k_of_n 时的 k")
@@ -128,6 +128,7 @@ def parse_args() -> argparse.Namespace:
         default=0.5,
         help="trigger_mode=weighted 时的阈值",
     )
+    parser.add_argument("--confirm_window", type=int, default=200, help="trigger_mode=two_stage 的 confirm_window")
     parser.add_argument(
         "--trigger_weights",
         type=str,
@@ -146,6 +147,13 @@ def parse_args() -> argparse.Namespace:
         help="severity-aware 调度缩放（仅 *_severity 变体生效）",
     )
     parser.add_argument("--use_severity_v2", action="store_true", help="启用 Severity-Aware v2")
+    parser.add_argument(
+        "--severity_gate",
+        type=str,
+        default="none",
+        choices=["none", "confirmed_only"],
+        help="severity v2 gating（confirmed_only 仅高置信 drift 更新 carry/freeze）",
+    )
     parser.add_argument(
         "--entropy_mode",
         type=str,
@@ -192,6 +200,8 @@ def build_command(
         str(experiment_run_params.get("trigger_k", 2)),
         "--trigger_threshold",
         str(experiment_run_params.get("trigger_threshold", 0.5)),
+        "--confirm_window",
+        str(experiment_run_params.get("confirm_window", 200)),
         "--device",
         device,
         "--log_path",
@@ -228,6 +238,7 @@ def build_command(
         cmd.extend(["--trigger_weights", str(experiment_run_params["trigger_weights"])])
     if experiment_run_params.get("use_severity_v2"):
         cmd.append("--use_severity_v2")
+        cmd.extend(["--severity_gate", str(experiment_run_params.get("severity_gate", "none"))])
         cmd.extend(["--entropy_mode", str(experiment_run_params.get("entropy_mode", "overconfident"))])
         cmd.extend(["--severity_decay", str(experiment_run_params.get("severity_decay", 0.95))])
         cmd.extend(["--freeze_baseline_steps", str(experiment_run_params.get("freeze_baseline_steps", 0))])
@@ -252,6 +263,8 @@ def run_dataset(
     entropy_mode: str = "overconfident",
     severity_decay: float = 0.95,
     freeze_baseline_steps: int = 0,
+    confirm_window: int = 200,
+    severity_gate: str = "none",
 ) -> None:
     for variant in model_variants:
         for seed in seeds:
@@ -262,7 +275,9 @@ def run_dataset(
                 "trigger_k": trigger_k,
                 "trigger_threshold": trigger_threshold,
                 "trigger_weights": trigger_weights,
+                "confirm_window": confirm_window,
                 "use_severity_v2": use_severity_v2,
+                "severity_gate": severity_gate,
                 "entropy_mode": entropy_mode,
                 "severity_decay": severity_decay,
                 "freeze_baseline_steps": freeze_baseline_steps,
@@ -299,7 +314,9 @@ def main() -> None:
     trigger_k = int(args.trigger_k)
     trigger_threshold = float(args.trigger_threshold)
     trigger_weights = args.trigger_weights
+    confirm_window = int(args.confirm_window)
     use_severity_v2 = bool(args.use_severity_v2)
+    severity_gate = str(args.severity_gate)
     entropy_mode = str(args.entropy_mode)
     severity_decay = float(args.severity_decay)
     freeze_baseline_steps = int(args.freeze_baseline_steps)
@@ -321,7 +338,9 @@ def main() -> None:
             trigger_k=trigger_k,
             trigger_threshold=trigger_threshold,
             trigger_weights=trigger_weights,
+            confirm_window=confirm_window,
             use_severity_v2=use_severity_v2,
+            severity_gate=severity_gate,
             entropy_mode=entropy_mode,
             severity_decay=severity_decay,
             freeze_baseline_steps=freeze_baseline_steps,
