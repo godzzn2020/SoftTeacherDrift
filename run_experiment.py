@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from typing import List
+from typing import List, Optional
 
 import sys
 from pathlib import Path
@@ -69,6 +69,31 @@ def parse_args() -> argparse.Namespace:
         help="选择漂移检测器预设，none 表示不启用",
     )
     parser.add_argument(
+        "--trigger_mode",
+        type=str,
+        default="or",
+        choices=["or", "k_of_n", "weighted"],
+        help="多 detector 融合触发策略（默认 or）",
+    )
+    parser.add_argument(
+        "--trigger_k",
+        type=int,
+        default=2,
+        help="trigger_mode=k_of_n 时的 k（至少 k 个 detector 同时触发才报警）",
+    )
+    parser.add_argument(
+        "--trigger_threshold",
+        type=float,
+        default=0.5,
+        help="trigger_mode=weighted 时的阈值（vote_score >= threshold 触发）",
+    )
+    parser.add_argument(
+        "--trigger_weights",
+        type=str,
+        default="",
+        help="trigger_mode=weighted 时的权重（形如 error_rate=0.5,divergence=0.3,teacher_entropy=0.2；空表示使用默认）",
+    )
+    parser.add_argument(
         "--device",
         type=str,
         default="cuda" if torch.cuda.is_available() else "cpu",
@@ -80,6 +105,30 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=1.0,
         help="全局 severity-aware 调度缩放，0 关闭，1 默认，>1 更激进",
+    )
+    parser.add_argument(
+        "--use_severity_v2",
+        action="store_true",
+        help="启用 Severity-Aware v2（漂移后 severity 以 carry+decay 形式持续影响调度）",
+    )
+    parser.add_argument(
+        "--entropy_mode",
+        type=str,
+        default="overconfident",
+        choices=["overconfident", "uncertain", "abs"],
+        help="SeverityCalibrator 的 entropy 正向增量定义",
+    )
+    parser.add_argument(
+        "--severity_decay",
+        type=float,
+        default=0.95,
+        help="Severity-Aware v2 的 carry 衰减系数（0~1，越大影响越持久）",
+    )
+    parser.add_argument(
+        "--freeze_baseline_steps",
+        type=int,
+        default=0,
+        help="检测到漂移后冻结 SeverityCalibrator baseline 的步数（0 关闭）",
     )
     parser.add_argument("--results_root", type=str, default="results", help="结果输出根目录")
     parser.add_argument("--logs_root", type=str, default="logs", help="日志根目录（用于自动路径时）")
@@ -123,6 +172,14 @@ def main() -> None:
         log_path=log_path,
         monitor_preset=args.monitor_preset,
         severity_scheduler_scale=args.severity_scheduler_scale,
+        trigger_mode=args.trigger_mode,
+        trigger_k=int(args.trigger_k),
+        trigger_threshold=float(args.trigger_threshold),
+        trigger_weights=parse_trigger_weights(args.trigger_weights),
+        use_severity_v2=bool(args.use_severity_v2),
+        entropy_mode=str(args.entropy_mode),
+        severity_decay=float(args.severity_decay),
+        freeze_baseline_steps=int(args.freeze_baseline_steps),
     )
     logs = run_ts_experiment(config=config, device=args.device)
     if logs.empty:
@@ -137,6 +194,27 @@ def main() -> None:
 def parse_hidden_dims(spec: str) -> List[int]:
     parts = [p.strip() for p in spec.split(",") if p.strip()]
     return [int(p) for p in parts] if parts else [128, 64]
+
+
+def parse_trigger_weights(spec: str) -> Optional[dict]:
+    if not spec:
+        return None
+    if spec.strip().lower() in {"none", "null"}:
+        return None
+    weights = {}
+    for token in spec.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        if "=" not in token:
+            raise ValueError(f"--trigger_weights 格式错误：{token}（期望 key=value）")
+        key, value = token.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            raise ValueError(f"--trigger_weights 格式错误：{token}（空 key）")
+        weights[key] = float(value)
+    return weights or None
 
 
 if __name__ == "__main__":

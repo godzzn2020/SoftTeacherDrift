@@ -30,6 +30,13 @@ def _use_severity_scheduler(model_variant: str) -> bool:
     return "_severity" in model_variant
 
 
+def _format_trigger_weights(weights: Optional[Dict[str, float]]) -> str:
+    if not weights:
+        return ""
+    parts = [f"{k}={weights[k]:.6g}" for k in sorted(weights.keys())]
+    return ",".join(parts)
+
+
 @dataclass
 class ExperimentConfig:
     """单次实验的高层配置。"""
@@ -52,7 +59,15 @@ class ExperimentConfig:
     stream_kwargs: Dict[str, Any] = field(default_factory=dict)
     log_path: Optional[str] = None
     monitor_preset: str = "none"
+    trigger_mode: str = "or"
+    trigger_k: int = 2
+    trigger_threshold: float = 0.5
+    trigger_weights: Optional[Dict[str, float]] = None
     severity_scheduler_scale: float = 1.0
+    use_severity_v2: bool = False
+    entropy_mode: str = "overconfident"
+    severity_decay: float = 0.95
+    freeze_baseline_steps: int = 0
 
 
 def run_experiment(config: ExperimentConfig, device: str = "cpu") -> pd.DataFrame:
@@ -84,7 +99,13 @@ def run_experiment(config: ExperimentConfig, device: str = "cpu") -> pd.DataFram
         device=torch.device(device),
     )
     optimizer = torch.optim.Adam(model.student.parameters(), lr=config.initial_lr)
-    monitor = detectors.build_default_monitor(preset=config.monitor_preset)
+    monitor = detectors.build_default_monitor(
+        preset=config.monitor_preset,
+        trigger_mode=config.trigger_mode,
+        trigger_k=config.trigger_k,
+        trigger_weights=config.trigger_weights,
+        trigger_threshold=config.trigger_threshold,
+    )
     initial_hparams = HParams(
         alpha=config.initial_alpha,
         lr=config.initial_lr,
@@ -107,7 +128,16 @@ def run_experiment(config: ExperimentConfig, device: str = "cpu") -> pd.DataFram
         dataset_name=config.dataset_name,
         model_variant=config.model_variant,
         seed=config.seed,
+        monitor_preset=config.monitor_preset,
+        trigger_mode=config.trigger_mode,
+        trigger_k=config.trigger_k,
+        trigger_threshold=config.trigger_threshold,
+        trigger_weights=_format_trigger_weights(config.trigger_weights),
         use_severity_scheduler=_use_severity_scheduler(config.model_variant),
+        use_severity_v2=bool(config.use_severity_v2),
+        entropy_mode=str(config.entropy_mode),
+        severity_decay=float(config.severity_decay),
+        freeze_baseline_steps=int(config.freeze_baseline_steps),
         severity_scheduler_scale=config.severity_scheduler_scale,
     )
     logs_df = run_training_loop(

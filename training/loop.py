@@ -38,7 +38,16 @@ class TrainingConfig:
     dataset_name: str = "unknown"
     model_variant: str = "ts_drift_adapt"
     seed: int = 0
+    monitor_preset: str = "none"
+    trigger_mode: str = "or"
+    trigger_k: int = 2
+    trigger_threshold: float = 0.5
+    trigger_weights: str = ""
     use_severity_scheduler: bool = False
+    use_severity_v2: bool = False
+    entropy_mode: str = "overconfident"
+    severity_decay: float = 0.95
+    freeze_baseline_steps: int = 0
     severity_ema_momentum: float = 0.99
     severity_eps: float = 1e-6
     severity_norm_low: float = 0.0
@@ -126,6 +135,8 @@ def run_training_loop(
     seen_samples = 0
     sample_idx = -1
     severity_calibrator: Optional[SeverityCalibrator] = None
+    severity_carry = 0.0
+    baseline_freeze_remaining = 0
     severity_scheduler_cfg = config.severity_scheduler_config or SeveritySchedulerConfig()
     severity_scheduler_cfg = replace(
         severity_scheduler_cfg,
@@ -137,6 +148,7 @@ def run_training_loop(
             eps=config.severity_eps,
             severity_low=config.severity_norm_low,
             severity_high=config.severity_norm_high,
+            entropy_mode=config.entropy_mode,
         )
     for step, batch in enumerate(batch_iter, start=1):
         if step > config.n_steps:
@@ -173,13 +185,20 @@ def run_training_loop(
 
         stats = _collect_statistics(losses, y_labeled_np, y_unlabeled_np)
         signals = stats["signals"]
-        if severity_calibrator:
-            severity_calibrator.update_baselines(
-                signals["error_rate"],
-                signals["divergence"],
-                signals["teacher_entropy"],
-            )
         drift_flag, monitor_severity = drift_monitor.update(signals, step)
+        monitor_vote_count = getattr(drift_monitor, "last_vote_count", None)
+        monitor_vote_score = getattr(drift_monitor, "last_vote_score", None)
+        monitor_fused_severity = getattr(drift_monitor, "last_fused_severity", None)
+
+        if severity_calibrator:
+            if baseline_freeze_remaining > 0:
+                baseline_freeze_remaining -= 1
+            else:
+                severity_calibrator.update_baselines(
+                    signals["error_rate"],
+                    signals["divergence"],
+                    signals["teacher_entropy"],
+                )
         severity_raw = 0.0
         severity_norm = 0.0
         if severity_calibrator and drift_flag:
@@ -188,13 +207,25 @@ def run_training_loop(
                 signals["divergence"],
                 signals["teacher_entropy"],
             )
+        if drift_flag and severity_calibrator and config.freeze_baseline_steps > 0:
+            baseline_freeze_remaining = max(baseline_freeze_remaining, int(config.freeze_baseline_steps))
+
+        if config.use_severity_v2:
+            decay = float(config.severity_decay)
+            if not (0.0 <= decay <= 1.0):
+                decay = min(1.0, max(0.0, decay))
+            severity_carry = max(severity_carry * decay, severity_norm)
+            severity_for_scheduler = severity_carry
+        else:
+            severity_carry = severity_norm
+            severity_for_scheduler = severity_norm
         if config.use_severity_scheduler:
             current_hparams, regime = update_hparams_with_severity(
                 scheduler_state,
                 current_hparams,
                 drift_flag,
                 monitor_severity,
-                severity_norm,
+                severity_for_scheduler,
                 severity_scheduler_cfg,
             )
         else:
@@ -220,6 +251,12 @@ def run_training_loop(
                 "dataset_type": config.dataset_type,
                 "model_variant": config.model_variant,
                 "seed": config.seed,
+                "monitor_preset": config.monitor_preset,
+                "trigger_mode": config.trigger_mode,
+                "trigger_k": int(config.trigger_k),
+                "trigger_threshold": float(config.trigger_threshold),
+                "trigger_weights": config.trigger_weights,
+                "severity_scheduler_scale": float(config.severity_scheduler_scale),
                 "metric_accuracy": acc_value,
                 "metric_kappa": kappa_value,
                 "student_error_rate": signals["error_rate"],
@@ -227,8 +264,16 @@ def run_training_loop(
                 "divergence_js": signals["divergence"],
                 "drift_flag": int(drift_flag),
                 "monitor_severity": monitor_severity,
+                "monitor_fused_severity": monitor_fused_severity if monitor_fused_severity is not None else 0.0,
+                "monitor_vote_count": int(monitor_vote_count) if monitor_vote_count is not None else 0,
+                "monitor_vote_score": float(monitor_vote_score) if monitor_vote_score is not None else 0.0,
                 "drift_severity_raw": severity_raw if drift_flag else 0.0,
                 "drift_severity": severity_norm if drift_flag else 0.0,
+                "severity_carry": severity_carry,
+                "use_severity_v2": int(bool(config.use_severity_v2)),
+                "entropy_mode": config.entropy_mode,
+                "decay": float(config.severity_decay),
+                "freeze_baseline_steps": int(config.freeze_baseline_steps),
                 "regime": regime,
                 "alpha": current_hparams.alpha,
                 "lr": current_hparams.lr,

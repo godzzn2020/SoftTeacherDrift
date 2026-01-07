@@ -7,7 +7,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
@@ -114,6 +114,26 @@ def parse_args() -> argparse.Namespace:
         choices=["none", "error_ph_meta", "divergence_ph_meta", "error_divergence_ph_meta"],
         help="run_experiment 的漂移检测预设",
     )
+    parser.add_argument(
+        "--trigger_mode",
+        type=str,
+        default="or",
+        choices=["or", "k_of_n", "weighted"],
+        help="多 detector 融合触发策略（默认 or）",
+    )
+    parser.add_argument("--trigger_k", type=int, default=2, help="trigger_mode=k_of_n 时的 k")
+    parser.add_argument(
+        "--trigger_threshold",
+        type=float,
+        default=0.5,
+        help="trigger_mode=weighted 时的阈值",
+    )
+    parser.add_argument(
+        "--trigger_weights",
+        type=str,
+        default="",
+        help="trigger_mode=weighted 时的权重（key=value 逗号分隔，空表示默认）",
+    )
     parser.add_argument("--device", type=str, default="cuda", help="运行设备（传给 run_experiment）")
     parser.add_argument("--logs_root", type=str, default="logs", help="日志输出根目录")
     parser.add_argument("--results_root", type=str, default="results", help="结果输出根目录")
@@ -125,6 +145,16 @@ def parse_args() -> argparse.Namespace:
         default=1.0,
         help="severity-aware 调度缩放（仅 *_severity 变体生效）",
     )
+    parser.add_argument("--use_severity_v2", action="store_true", help="启用 Severity-Aware v2")
+    parser.add_argument(
+        "--entropy_mode",
+        type=str,
+        default="overconfident",
+        choices=["overconfident", "uncertain", "abs"],
+        help="SeverityCalibrator 的 entropy 正向增量定义",
+    )
+    parser.add_argument("--severity_decay", type=float, default=0.95, help="Severity-Aware v2 的 carry 衰减系数")
+    parser.add_argument("--freeze_baseline_steps", type=int, default=0, help="漂移后冻结 baseline 的步数")
     return parser.parse_args()
 
 
@@ -141,6 +171,7 @@ def build_command(
     device: str,
     severity_scheduler_scale: float,
     experiment_run: ExperimentRun,
+    experiment_run_params: Dict[str, Any],
 ) -> List[str]:
     cmd = [
         sys.executable,
@@ -155,6 +186,12 @@ def build_command(
         str(seed),
         "--monitor_preset",
         monitor_preset,
+        "--trigger_mode",
+        str(experiment_run_params.get("trigger_mode", "or")),
+        "--trigger_k",
+        str(experiment_run_params.get("trigger_k", 2)),
+        "--trigger_threshold",
+        str(experiment_run_params.get("trigger_threshold", 0.5)),
         "--device",
         device,
         "--log_path",
@@ -187,6 +224,13 @@ def build_command(
     if cfg.label_col:
         cmd.extend(["--label_col", cfg.label_col])
     cmd.extend(["--severity_scheduler_scale", str(severity_scheduler_scale)])
+    if experiment_run_params.get("trigger_weights"):
+        cmd.extend(["--trigger_weights", str(experiment_run_params["trigger_weights"])])
+    if experiment_run_params.get("use_severity_v2"):
+        cmd.append("--use_severity_v2")
+        cmd.extend(["--entropy_mode", str(experiment_run_params.get("entropy_mode", "overconfident"))])
+        cmd.extend(["--severity_decay", str(experiment_run_params.get("severity_decay", 0.95))])
+        cmd.extend(["--freeze_baseline_steps", str(experiment_run_params.get("freeze_baseline_steps", 0))])
     return cmd
 
 
@@ -199,11 +243,30 @@ def run_dataset(
     device: str,
     severity_scheduler_scale: float,
     experiment_run: ExperimentRun,
+    *,
+    trigger_mode: str = "or",
+    trigger_k: int = 2,
+    trigger_threshold: float = 0.5,
+    trigger_weights: str = "",
+    use_severity_v2: bool = False,
+    entropy_mode: str = "overconfident",
+    severity_decay: float = 0.95,
+    freeze_baseline_steps: int = 0,
 ) -> None:
     for variant in model_variants:
         for seed in seeds:
             run_paths = experiment_run.prepare_dataset_run(cfg.dataset_name, variant, seed)
             log_path = run_paths.log_csv_path()
+            exp_params = {
+                "trigger_mode": trigger_mode,
+                "trigger_k": trigger_k,
+                "trigger_threshold": trigger_threshold,
+                "trigger_weights": trigger_weights,
+                "use_severity_v2": use_severity_v2,
+                "entropy_mode": entropy_mode,
+                "severity_decay": severity_decay,
+                "freeze_baseline_steps": freeze_baseline_steps,
+            }
             cmd = build_command(
                 cfg,
                 variant,
@@ -213,6 +276,7 @@ def run_dataset(
                 device,
                 severity_scheduler_scale,
                 experiment_run,
+                exp_params,
             )
             print(f"[run] dataset={cfg.dataset_name} model={variant} seed={seed} log={log_path}")
             subprocess.run(cmd, check=True)
@@ -231,6 +295,14 @@ def main() -> None:
     )
     print(f"[run] run_real_adaptive run_id={experiment_run.run_id}")
     model_variants = parse_model_variants(args.model_variants)
+    trigger_mode = args.trigger_mode
+    trigger_k = int(args.trigger_k)
+    trigger_threshold = float(args.trigger_threshold)
+    trigger_weights = args.trigger_weights
+    use_severity_v2 = bool(args.use_severity_v2)
+    entropy_mode = str(args.entropy_mode)
+    severity_decay = float(args.severity_decay)
+    freeze_baseline_steps = int(args.freeze_baseline_steps)
     for name in datasets:
         if name not in REAL_DATASETS:
             print(f"[warn] dataset '{name}' 未在 REAL_DATASETS 中定义，跳过")
@@ -245,6 +317,14 @@ def main() -> None:
             args.device,
             args.severity_scheduler_scale,
             experiment_run,
+            trigger_mode=trigger_mode,
+            trigger_k=trigger_k,
+            trigger_threshold=trigger_threshold,
+            trigger_weights=trigger_weights,
+            use_severity_v2=use_severity_v2,
+            entropy_mode=entropy_mode,
+            severity_decay=severity_decay,
+            freeze_baseline_steps=freeze_baseline_steps,
         )
     print("[done] all requested runs finished.")
 

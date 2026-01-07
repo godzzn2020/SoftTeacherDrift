@@ -24,12 +24,16 @@ class SeverityCalibrator:
         severity_low: float = 0.0,
         severity_high: float = 2.0,
         weights: Tuple[float, float, float] = (0.6, 0.3, 0.1),
+        entropy_mode: str = "overconfident",
     ) -> None:
         self.m = ema_momentum
         self.eps = eps
         self.severity_low = severity_low
         self.severity_high = max(severity_high, severity_low + 1e-6)
         self.weights = weights
+        if entropy_mode not in {"overconfident", "uncertain", "abs"}:
+            raise ValueError(f"未知 entropy_mode: {entropy_mode}（可选 overconfident/uncertain/abs）")
+        self.entropy_mode = entropy_mode
         self.baseline_error: Optional[float] = None
         self.baseline_div: Optional[float] = None
         self.baseline_entropy: Optional[float] = None
@@ -84,7 +88,14 @@ class SeverityCalibrator:
 
         x_error_pos = max(0.0, delta_error)
         x_div_pos = max(0.0, delta_div)
-        x_entropy_pos = max(0.0, -delta_entropy)
+        if self.entropy_mode == "overconfident":
+            # 教师“更自信”（entropy 下降）视为 drift 风险
+            x_entropy_pos = max(0.0, -delta_entropy)
+        elif self.entropy_mode == "uncertain":
+            # 教师“更不确定”（entropy 上升）也视为 drift 风险
+            x_entropy_pos = max(0.0, delta_entropy)
+        else:  # abs
+            x_entropy_pos = abs(delta_entropy)
 
         if x_error_pos <= 0 and x_div_pos <= 0 and x_entropy_pos <= 0:
             return 0.0, 0.0
@@ -106,4 +117,3 @@ class SeverityCalibrator:
         s_norm = (severity_raw - self.severity_low) / (self.severity_high - self.severity_low)
         s_norm = max(0.0, min(1.0, s_norm))
         return severity_raw, s_norm
-

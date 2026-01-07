@@ -15,12 +15,18 @@
     - `error_ph_meta`：仅监控学生误差率，使用 `PageHinkley(delta=0.005, alpha=0.15, threshold=0.2, min_instances=25)`；
     - `divergence_ph_meta`：仅监控 JS 散度，使用 `PageHinkley(delta=0.005, alpha=0.1, threshold=0.05, min_instances=30)`；
     - `error_divergence_ph_meta`：同时监控误差率与散度。
-  - `build_default_monitor(preset="error_ph_meta")` 会根据预设构建对应的 `DriftMonitor`。
+  - `build_default_monitor(preset="error_ph_meta")` 会根据预设构建对应的 `DriftMonitor`，并支持多 detector 的融合触发策略 `trigger_mode`：
+    - `or`：任一 detector 触发即 `drift_flag=True`（默认，保持旧行为）。
+    - `k_of_n`：至少 `k` 个 detector 同时触发才 `drift_flag=True`（例如 `k=2` 更保守）。
+    - `weighted`：计算 `vote_score = Σ w_i * I(detector_i_drift)`，当 `vote_score >= threshold` 才触发。
+      - 建议默认权重：`error_rate=0.5, divergence=0.3, teacher_entropy=0.2`；阈值可从 `0.5` 起调（更大更保守）。
   - `update(values, step)`：
     - 通过 `SIGNAL_ALIASES` 从 `values` 中抽取对应的信号（例如 `"error_rate" → student_error_rate"`，`"divergence" → divergence_js`）；
     - 调用 river 的 `detector.update(value)`；
-    - 通过 `get_drift_flag(detector)` 统一读取 `drift_detected` 标志，若任一检测器触发则置 `drift_flag=True`；
-    - 以当前值与上一次值的差的绝对值作为该信号的增量，取所有信号中的最大值作为本批次 `severity`；
+    - 通过 `get_drift_flag(detector)` 统一读取 `drift_detected` 标志，并按 `trigger_mode` 计算融合后的 `drift_flag`；
+    - `monitor_severity`：保持原定义（只在 detector 触发时，取 `abs(value - prev_on_drift)` 的 max）；
+    - `monitor_fused_severity`：新增调试口径（每步 max `abs(value - prev_all)`，与 drift_flag 无关）；
+    - 额外记录：`monitor_vote_count`（本步触发的 detector 数量）、`monitor_vote_score`（weighted 时的票分；其它模式也会给出一致口径的得分）。
     - 将发生漂移的 `step` 追加到 `history`，更新 `last_drift_step`。
 - 检测值应避开 `NaN` / 空批次（训练循环已做防护）。
 
@@ -45,13 +51,17 @@
   - 当 `drift_flag = 1` 时，计算三种“危险方向”的正向增量：
     - `x_error_pos = max(0, error - baseline_error)`（学生错误率的上升）；
     - `x_div_pos = max(0, divergence - baseline_div)`（师生分歧的扩大）；
-    - `x_entropy_pos = max(0, baseline_entropy - entropy)`（教师过度自信）。
+    - `x_entropy_pos` 支持 `entropy_mode`：
+      - `overconfident`：`max(0, baseline_entropy - entropy)`（保持旧行为：教师更自信）；
+      - `uncertain`：`max(0, entropy - baseline_entropy)`（教师更不确定）；
+      - `abs`：`abs(entropy - baseline_entropy)`（双向偏离）。
   - 对 `x_*` 在线估计 mean/std，变换为 `z_*` 后按 `(0.6, 0.3, 0.1)` 加权得到 `drift_severity_raw`；
   - 将 `drift_severity_raw` 映射到 `[severity_low, severity_high]`（默认 `[0, 2]`）区间，再压缩到 `[0, 1]` 记作 `drift_severity`，供调度器使用。
 - 日志字段：
   - `monitor_severity`：`DriftMonitor` 给出的单步增量（兼容旧版 `drift_severity` 定义）；
   - `drift_severity_raw`：三信号融合后的原始严重度；
   - `drift_severity`：归一化严重度，缺省仅在 `drift_flag=1` 时为正。
+  - `severity_carry`：Severity-Aware v2 的“持续严重度”（默认关闭；见训练循环文档）。
 
 ## 超参调度（Scheduler）
 
@@ -61,7 +71,7 @@
     - **mild_drift**：检测器报警且严重度不大 → 略降 `alpha`、略升 `lr`、适度降低 `lambda_u`、适度降低 `tau`。
     - **severe_drift**：严重漂移 → 显著降低 `alpha`、提升 `lr`、减小 `lambda_u`、下调 `tau`。
   - `update_hparams` 输出新的超参并返回当前 regime，训练循环据此写入日志与调节优化器。
-- `update_hparams_with_severity`：在基础调度的结果上，再按照 `drift_severity (s_norm)` 缩放：
+- `update_hparams_with_severity`：在基础调度的结果上，再按照 `severity_norm` 缩放（v1 默认使用 `drift_severity`，v2 可用 `severity_carry` 替代；由训练循环决定）：
     - `alpha *= (1 - alpha_scale * s)`（默认 `alpha_scale=0.3`），严重漂移时更快“忘掉”旧教师；
     - `lambda_u *= (1 - lambda_u_scale * s)`（默认 `0.7`），抑制伪标签误差传播；
     - `tau += tau_delta * s`（默认 `0.15`），降低伪标签置信门槛；

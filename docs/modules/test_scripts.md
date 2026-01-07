@@ -20,6 +20,51 @@ if str(ROOT_DIR) not in sys.path:
 
 ## 离线 / 评估脚本
 
+### scripts/summarize_next_round.py
+
+- 作用：针对“下一轮实验（Track A/B/C）”的指定 `run_name`（附加在 `run_id` 后的 token），自动在 `logs/` 与 `results/` 中定位对应 `run_id`，并汇总关键表格到 Markdown。
+- 约束：脚本仅使用标准库 `csv/json/os/statistics`（不依赖 pandas），并复用 `evaluation/drift_metrics.py`（其本身也仅依赖标准库）在 INSECTS 上重算 MDR/MTD/MTFA/MTR。
+- 关键参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--logs_root` | 日志根目录 | `logs` |
+| `--results_root` | 结果根目录 | `results` |
+| `--out_md` | 输出 Markdown 路径 | `NEXT_ROUND_TRACK_REPORT.md` |
+| `--out_run_index_csv` | 输出本轮 run 索引 CSV | `NEXT_ROUND_RUN_INDEX.csv` |
+| `--insects_meta` | INSECTS 真值 meta 路径 | `datasets/real/INSECTS_abrupt_balanced.json` |
+| `--track_run_name_map` | 可选 JSON 覆盖默认 Track->(experiment,run_name_token) 映射 | 空 |
+
+- 示例：
+
+```bash
+python scripts/summarize_next_round.py \
+  --logs_root logs \
+  --results_root results \
+  --out_md NEXT_ROUND_TRACK_REPORT.md \
+  --out_run_index_csv NEXT_ROUND_RUN_INDEX.csv
+```
+
+### scripts/summarize_next_round_v3.py
+
+- 作用：汇总 Track D/E（Severity-Aware v2 + trigger_mode 融合策略）实验，输出：
+  - `scripts/NEXT_ROUND_V3_REPORT.md`
+  - `scripts/NEXT_ROUND_V3_RUN_INDEX.csv`
+  - `scripts/NEXT_ROUND_V3_METRICS_TABLE.csv`
+- 关键参数（节选）：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--recovery_window` | post-drift 恢复窗口 W（样本尺度） | `1000` |
+| `--match_tolerance` | tolerance 口径的匹配容差（样本数） | `500` |
+| `--min_separation` | tolerance 口径的去重间隔（样本数） | `200` |
+
+- 示例：
+
+```bash
+python scripts/summarize_next_round_v3.py
+```
+
 ### evaluation/phaseA_signal_drift_analysis_synth.py
 
 - 作用：针对合成数据流，读取 `logs/{dataset}/{dataset}__{model}__seed{seed}.csv` 和 `data/synthetic/{dataset}/{dataset}__seed{seed}_meta.json`，绘制三种漂移信号（student_error_rate / teacher_entropy / divergence_js）与真实漂移的对齐图，并在漂移前后窗口统计信号均值差异，输出汇总 CSV，帮助分析 offline 搜索到的信号是否与真值一致。
@@ -301,6 +346,12 @@ python experiments/analyze_abrupt_results.py \
 | `--batch_size`, `--labeled_ratio`, `--n_steps`, `--hidden_dims`, `--dropout` | 训练配置 |
 | `--initial_alpha`, `--initial_lr`, `--lambda_u`, `--tau` | Teacher-Student 超参 |
 | `--monitor_preset` | `none` / `error_ph_meta` / `divergence_ph_meta` / `error_divergence_ph_meta` |
+| `--trigger_mode` | `or` / `k_of_n` / `weighted`（多 detector 融合触发） |
+| `--trigger_k` | `k_of_n` 的 k（至少 k 个 detector 同时触发） |
+| `--trigger_weights`, `--trigger_threshold` | `weighted` 的权重与阈值 |
+| `--use_severity_v2` | 启用 Severity-Aware v2（carry+decay 持续影响调度） |
+| `--entropy_mode` | `overconfident` / `uncertain` / `abs` |
+| `--severity_decay`, `--freeze_baseline_steps` | v2 的 decay 与 baseline 冻结步数 |
 | `--log_path` | CSV 输出路径 |
 | `--device`, `--seed` | 运行设备与随机种子 |
 
@@ -401,6 +452,8 @@ python experiments/summarize_online_results.py \
 | `--datasets` / `--models` | 逗号分隔列表 | `sea_abrupt4,sine_abrupt4,stagger_abrupt3` / `baseline_student,mean_teacher,ts_drift_adapt,ts_drift_adapt_severity` |
 | `--seeds` | 多个 seed | `1 2 3 4 5` |
 | `--monitor_preset` | 统一传给 run_experiment | `error_ph_meta` |
+| `--trigger_mode` / `--trigger_k` / `--trigger_weights` / `--trigger_threshold` | 透传给 run_experiment（监控融合策略） | `or` / `2` / 空 / `0.5` |
+| `--use_severity_v2` / `--entropy_mode` / `--severity_decay` / `--freeze_baseline_steps` | 透传给 run_experiment（Severity-Aware v2） | 关闭 / `overconfident` / `0.95` / `0` |
 | `--device` | run_experiment 的 --device | `cuda` |
 | `--gpus` / `--max_jobs_per_gpu` | 并行运行时的 GPU 设置 | `0,1` / `2`（填 `none` 可顺序运行） |
 | `--logs_root` | 日志根目录 | `logs` |
@@ -456,6 +509,8 @@ python experiments/stage1_multi_seed.py \
 | `--seeds` | 多个 seed | `1 2 3` |
 | `--model_variants` | 需要运行的模型列表 | `ts_drift_adapt` |
 | `--monitor_preset` | 传给 run_experiment 的漂移检测配置 | `error_divergence_ph_meta` |
+| `--trigger_mode` / `--trigger_k` / `--trigger_weights` / `--trigger_threshold` | 透传给 run_experiment（监控融合策略） | `or` / `2` / 空 / `0.5` |
+| `--use_severity_v2` / `--entropy_mode` / `--severity_decay` / `--freeze_baseline_steps` | 透传给 run_experiment（Severity-Aware v2） | 关闭 / `overconfident` / `0.95` / `0` |
 | `--device` | 训练设备 | `cuda` |
 | `--logs_root` | 日志输出根目录 | `logs` |
 

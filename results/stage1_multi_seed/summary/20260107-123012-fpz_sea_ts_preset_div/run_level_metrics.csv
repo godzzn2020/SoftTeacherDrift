@@ -1,0 +1,4 @@
+dataset,model,seed,acc_final,acc_max,kappa_final,drift_events,total_steps,seen_samples,MDR,MTD,MTFA,MTR,n_detected
+sea_abrupt4,ts_drift_adapt,1,0.8411,0.8411,0.633469002486919,0,782,50000,1.0,,,,0
+sea_abrupt4,ts_drift_adapt,3,0.8616,0.8616157170294494,0.6801140938725532,1,782,50000,0.75,591.0,,,1
+sea_abrupt4,ts_drift_adapt,5,0.84974,0.84974,0.6480653869983743,1,782,50000,0.75,527.0,,,1

@@ -1,0 +1,3 @@
+dataset,model,acc_final_mean,acc_final_std,acc_max_mean,acc_max_std,kappa_final_mean,kappa_final_std,MDR_mean,MDR_std,MTD_mean,MTD_std,MTFA_mean,MTFA_std,MTR_mean,MTR_std,n_detected_mean,n_detected_std
+sea_abrupt4,ts_drift_adapt,0.852848,0.009370523998155043,0.852848,0.009370523998155043,0.6585818120294985,0.02193696878024607,1.0,0.0,,,,,,,0.0,0.0
+stagger_abrupt3,ts_drift_adapt,0.85399609375,0.006269114447788637,0.9893329326923077,0.003208061245614884,0.6843688268241193,0.013709195677552443,1.0,0.0,,,,,,,0.0,0.0

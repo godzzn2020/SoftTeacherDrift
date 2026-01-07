@@ -42,6 +42,14 @@ class Args:
     models: List[str]
     seeds: List[int]
     monitor_preset: str
+    trigger_mode: str
+    trigger_k: int
+    trigger_threshold: float
+    trigger_weights: str
+    use_severity_v2: bool
+    entropy_mode: str
+    severity_decay: float
+    freeze_baseline_steps: int
     device: str
     gpus: List[str]
     max_jobs_per_gpu: int
@@ -96,6 +104,31 @@ def parse_args() -> Args:
         choices=["none", "error_ph_meta", "divergence_ph_meta", "error_divergence_ph_meta"],
         help="漂移检测器预设（默认 error_ph_meta）",
     )
+    parser.add_argument(
+        "--trigger_mode",
+        type=str,
+        default="or",
+        choices=["or", "k_of_n", "weighted"],
+        help="多 detector 融合触发策略（默认 or）",
+    )
+    parser.add_argument("--trigger_k", type=int, default=2, help="trigger_mode=k_of_n 时的 k")
+    parser.add_argument("--trigger_threshold", type=float, default=0.5, help="trigger_mode=weighted 时阈值")
+    parser.add_argument(
+        "--trigger_weights",
+        type=str,
+        default="",
+        help="trigger_mode=weighted 时权重（key=value 逗号分隔，空表示默认）",
+    )
+    parser.add_argument("--use_severity_v2", action="store_true", help="启用 Severity-Aware v2（carry+decay）")
+    parser.add_argument(
+        "--entropy_mode",
+        type=str,
+        default="overconfident",
+        choices=["overconfident", "uncertain", "abs"],
+        help="SeverityCalibrator 的 entropy 正向增量定义",
+    )
+    parser.add_argument("--severity_decay", type=float, default=0.95, help="Severity-Aware v2 carry 衰减系数")
+    parser.add_argument("--freeze_baseline_steps", type=int, default=0, help="漂移后冻结 baseline 的步数")
     parser.add_argument("--device", type=str, default="cuda", help="运行设备（传递给 run_experiment）")
     parser.add_argument(
         "--gpus",
@@ -162,6 +195,14 @@ def parse_args() -> Args:
         models=models,
         seeds=seed_values,
         monitor_preset=ns.monitor_preset,
+        trigger_mode=ns.trigger_mode,
+        trigger_k=int(ns.trigger_k),
+        trigger_threshold=float(ns.trigger_threshold),
+        trigger_weights=str(ns.trigger_weights),
+        use_severity_v2=bool(ns.use_severity_v2),
+        entropy_mode=str(ns.entropy_mode),
+        severity_decay=float(ns.severity_decay),
+        freeze_baseline_steps=int(ns.freeze_baseline_steps),
         device=ns.device,
         gpus=parse_gpus(ns.gpus),
         max_jobs_per_gpu=ns.max_jobs_per_gpu,
@@ -192,6 +233,14 @@ def build_command(
     model: str,
     seed: int,
     monitor_preset: str,
+    trigger_mode: str,
+    trigger_k: int,
+    trigger_threshold: float,
+    trigger_weights: str,
+    use_severity_v2: bool,
+    entropy_mode: str,
+    severity_decay: float,
+    freeze_baseline_steps: int,
     device: str,
     log_path: Path,
     severity_scheduler_scale: float,
@@ -210,6 +259,12 @@ def build_command(
         str(seed),
         "--monitor_preset",
         monitor_preset,
+        "--trigger_mode",
+        trigger_mode,
+        "--trigger_k",
+        str(trigger_k),
+        "--trigger_threshold",
+        str(trigger_threshold),
         "--device",
         device,
         "--log_path",
@@ -246,6 +301,13 @@ def build_command(
     if cfg.label_col:
         cmd.extend(["--label_col", cfg.label_col])
     cmd.extend(["--severity_scheduler_scale", str(severity_scheduler_scale)])
+    if trigger_weights:
+        cmd.extend(["--trigger_weights", trigger_weights])
+    if use_severity_v2:
+        cmd.append("--use_severity_v2")
+        cmd.extend(["--entropy_mode", str(entropy_mode)])
+        cmd.extend(["--severity_decay", str(severity_decay)])
+        cmd.extend(["--freeze_baseline_steps", str(freeze_baseline_steps)])
     return str(log_path), cmd
 
 
@@ -360,6 +422,14 @@ def create_tasks(
     models: List[str],
     seeds: Sequence[int],
     monitor_preset: str,
+    trigger_mode: str,
+    trigger_k: int,
+    trigger_threshold: float,
+    trigger_weights: str,
+    use_severity_v2: bool,
+    entropy_mode: str,
+    severity_decay: float,
+    freeze_baseline_steps: int,
     python_bin: str,
     device: str,
     experiment_run: ExperimentRun,
@@ -375,6 +445,14 @@ def create_tasks(
                     model_variant,
                     seed,
                     monitor_preset,
+                    trigger_mode,
+                    trigger_k,
+                    trigger_threshold,
+                    trigger_weights,
+                    use_severity_v2,
+                    entropy_mode,
+                    severity_decay,
+                    freeze_baseline_steps,
                     device,
                     run_paths.log_csv_path(),
                     severity_scheduler_scale,
@@ -464,6 +542,14 @@ def main() -> None:
         models=args.models,
         seeds=args.seeds,
         monitor_preset=args.monitor_preset,
+        trigger_mode=args.trigger_mode,
+        trigger_k=args.trigger_k,
+        trigger_threshold=args.trigger_threshold,
+        trigger_weights=args.trigger_weights,
+        use_severity_v2=args.use_severity_v2,
+        entropy_mode=args.entropy_mode,
+        severity_decay=args.severity_decay,
+        freeze_baseline_steps=args.freeze_baseline_steps,
         python_bin=sys.executable,
         device=args.device,
         experiment_run=experiment_run,

@@ -1,0 +1,11 @@
+experiment_name,run_name_token,run_id,datasets,models,seeds
+run_real_adaptive,noaa_seed3_div_s2,20260107-122800-k6h_noaa_seed3_div_s2,NOAA,"ts_drift_adapt,ts_drift_adapt_severity",3
+run_real_adaptive,noaa_seed3_err_s2,20260107-122829-x9i_noaa_seed3_err_s2,NOAA,"ts_drift_adapt,ts_drift_adapt_severity",3
+run_real_adaptive,noaa_seed3_div_s0,20260107-122856-5ta_noaa_seed3_div_s0,NOAA,ts_drift_adapt_severity,3
+run_real_adaptive,noaa_sweep_s0,20260107-123522-488_noaa_sweep_s0,NOAA,"ts_drift_adapt,ts_drift_adapt_severity","1,2,3,4,5"
+run_real_adaptive,noaa_sweep_s2,20260107-123639-a5h_noaa_sweep_s2,NOAA,"ts_drift_adapt,ts_drift_adapt_severity","1,2,3,4,5"
+stage1_multi_seed,sea_ts_preset_err,20260107-122940-uk6_sea_ts_preset_err,sea_abrupt4,ts_drift_adapt,"1,3,5"
+stage1_multi_seed,sea_ts_preset_div,20260107-123012-fpz_sea_ts_preset_div,sea_abrupt4,ts_drift_adapt,"1,3,5"
+stage1_multi_seed,sea_ts_preset_both,20260107-123047-4e4_sea_ts_preset_both,sea_abrupt4,ts_drift_adapt,"1,3,5"
+run_real_adaptive,insects_sweep_s0,20260107-123135-g5y_insects_sweep_s0,INSECTS_abrupt_balanced,"ts_drift_adapt,ts_drift_adapt_severity","1,2,3,4,5"
+run_real_adaptive,insects_sweep_s2,20260107-123333-hk3_insects_sweep_s2,INSECTS_abrupt_balanced,"ts_drift_adapt,ts_drift_adapt_severity","1,2,3,4,5"

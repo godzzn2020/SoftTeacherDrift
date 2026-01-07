@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import math
 
@@ -122,38 +122,93 @@ class DriftMonitor:
     """同时监控多个指标的漂移检测器集合。"""
 
     detectors: Dict[str, drift.base.DriftDetector]
+    trigger_mode: str = "or"
+    trigger_k: int = 2
+    trigger_weights: Optional[Dict[str, float]] = None
+    trigger_threshold: float = 0.5
     history: List[int] = field(default_factory=list)
     last_drift_step: int = -1
 
     def __post_init__(self) -> None:
-        self._prev_values: Dict[str, float] = {}
+        self._prev_values_on_drift: Dict[str, float] = {}
+        self._prev_values_all: Dict[str, float] = {}
+        self.last_vote_count: int = 0
+        self.last_vote_score: float = 0.0
+        self.last_fused_severity: float = 0.0
 
     def update(self, values: Dict[str, float], step: int) -> Tuple[bool, float]:
         """输入最新批次统计，返回漂移标志与严重度。"""
-        drift_flag = False
-        severity = 0.0
+        trigger_mode = (self.trigger_mode or "or").lower()
+        if trigger_mode not in {"or", "k_of_n", "weighted"}:
+            trigger_mode = "or"
+        k = int(self.trigger_k) if self.trigger_k is not None else 2
+        k = max(1, k)
+        weights = self.trigger_weights or {"error_rate": 0.5, "divergence": 0.3, "teacher_entropy": 0.2}
+        threshold = float(self.trigger_threshold) if self.trigger_threshold is not None else 0.5
+
+        monitor_severity = 0.0
+        fused_severity = 0.0
+        vote_count = 0
+        vote_score = 0.0
+
         for name, detector in self.detectors.items():
             value = _resolve_signal(values, name)
             if isinstance(value, float) and math.isnan(value):
                 continue
+            delta_all = abs(value - self._prev_values_all.get(name, value))
+            fused_severity = max(fused_severity, delta_all)
+            self._prev_values_all[name] = value
             detector.update(value)
-            if get_drift_flag(detector):
-                drift_flag = True
-                delta = abs(value - self._prev_values.get(name, value))
-                severity = max(severity, delta)
-                self._prev_values[name] = value
+            drifted = get_drift_flag(detector)
+            if drifted:
+                vote_count += 1
+                vote_score += float(weights.get(name, 1.0))
+                delta_on_drift = abs(value - self._prev_values_on_drift.get(name, value))
+                monitor_severity = max(monitor_severity, delta_on_drift)
+                self._prev_values_on_drift[name] = value
+
+        if trigger_mode == "or":
+            drift_flag = vote_count >= 1
+        elif trigger_mode == "k_of_n":
+            drift_flag = vote_count >= k
+        else:  # weighted
+            drift_flag = vote_score >= threshold
+
+        self.last_vote_count = vote_count
+        self.last_vote_score = float(vote_score)
+        self.last_fused_severity = float(fused_severity)
+
         if drift_flag:
             self.history.append(step)
             self.last_drift_step = step
-        return drift_flag, severity
+        return drift_flag, monitor_severity
 
 
-def build_default_monitor(preset: str = "error_ph_meta") -> DriftMonitor:
+def build_default_monitor(
+    preset: str = "error_ph_meta",
+    *,
+    trigger_mode: str = "or",
+    trigger_k: int = 2,
+    trigger_weights: Optional[Dict[str, float]] = None,
+    trigger_threshold: float = 0.5,
+) -> DriftMonitor:
     """根据预设构建监控器。"""
     if preset == "none":
-        return DriftMonitor(detectors={})
+        return DriftMonitor(
+            detectors={},
+            trigger_mode=trigger_mode,
+            trigger_k=trigger_k,
+            trigger_weights=trigger_weights,
+            trigger_threshold=trigger_threshold,
+        )
     factory = MONITOR_PRESETS.get(preset)
     if factory is None:
         raise ValueError(f"未知 monitor preset: {preset}")
     detectors_dict = factory()
-    return DriftMonitor(detectors=detectors_dict)
+    return DriftMonitor(
+        detectors=detectors_dict,
+        trigger_mode=trigger_mode,
+        trigger_k=trigger_k,
+        trigger_weights=trigger_weights,
+        trigger_threshold=trigger_threshold,
+    )

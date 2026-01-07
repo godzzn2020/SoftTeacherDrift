@@ -94,3 +94,15 @@
 
 2025-11-20  [assistant]  修改 summary：扩展 `drift/detectors.py` 的 PageHinkley 预设为 error/entropy/divergence 的 7 种组合，并新增合成流检测消融脚本 `evaluation/phaseB_detection_ablation_synth.py`  
 影响文件：drift/detectors.py, evaluation/phaseB_detection_ablation_synth.py, docs/modules/drift_and_scheduler.md, docs/modules/test_scripts.md, docs/modules/experiments_stage1.md
+
+2026-01-06  [assistant]  修改 summary：新增本地实验进展报告，汇总 logs/results 最新 run_id、关键产物与 Top3/Bottom3 指标排行  
+影响文件：LOCAL_PROGRESS_REPORT.md, changelog/CHANGELOG.md
+
+2026-01-07  [assistant]  修改 summary：生成 v2 实验进展与排查报告，补充 run 索引与统一指标表（含 window/tolerance 两种漂移口径与 NOAA 离群分析）  
+影响文件：LOCAL_PROGRESS_REPORT_v2.md, RUN_INDEX.csv, UNIFIED_METRICS_TABLE.csv, changelog/CHANGELOG.md
+
+2026-01-07  [assistant]  修改 summary：完成下一轮 Track A/B/C 实验并新增 stdlib 汇总脚本，自动生成报告与本轮 run 索引  
+影响文件：scripts/summarize_next_round.py, NEXT_ROUND_TRACK_REPORT.md, NEXT_ROUND_RUN_INDEX.csv, docs/modules/test_scripts.md, changelog/CHANGELOG.md
+
+2026-01-07  [assistant]  修改 summary：新增 Severity-Aware v2（carry+decay+baseline freeze + entropy_mode）与 drift monitor 融合触发策略（or/k_of_n/weighted），完成 Track D/E 并自动生成 V3 报告与指标表  
+影响文件：soft_drift/severity.py, drift/detectors.py, training/loop.py, experiments/first_stage_experiments.py, run_experiment.py, experiments/run_real_adaptive.py, experiments/stage1_multi_seed.py, scripts/summarize_next_round_v3.py, scripts/NEXT_ROUND_V3_REPORT.md, scripts/NEXT_ROUND_V3_RUN_INDEX.csv, scripts/NEXT_ROUND_V3_METRICS_TABLE.csv, docs/modules/drift_and_scheduler.md, docs/modules/training_loop.md, docs/modules/test_scripts.md, changelog/CHANGELOG.md
