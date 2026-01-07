@@ -67,6 +67,7 @@ class ExperimentConfig:
     severity_scheduler_scale: float = 1.0
     use_severity_v2: bool = False
     severity_gate: str = "none"
+    severity_gate_min_streak: int = 1
     entropy_mode: str = "overconfident"
     severity_decay: float = 0.95
     freeze_baseline_steps: int = 0
@@ -140,6 +141,7 @@ def run_experiment(config: ExperimentConfig, device: str = "cpu") -> pd.DataFram
         use_severity_scheduler=_use_severity_scheduler(config.model_variant),
         use_severity_v2=bool(config.use_severity_v2),
         severity_gate=str(config.severity_gate),
+        severity_gate_min_streak=int(getattr(config, "severity_gate_min_streak", 1) or 1),
         entropy_mode=str(config.entropy_mode),
         severity_decay=float(config.severity_decay),
         freeze_baseline_steps=int(config.freeze_baseline_steps),

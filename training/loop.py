@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
+import json
 import os
 import time
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -47,6 +49,7 @@ class TrainingConfig:
     use_severity_scheduler: bool = False
     use_severity_v2: bool = False
     severity_gate: str = "none"
+    severity_gate_min_streak: int = 1
     entropy_mode: str = "overconfident"
     severity_decay: float = 0.95
     freeze_baseline_steps: int = 0
@@ -136,9 +139,13 @@ def run_training_loop(
     logs: List[Dict[str, Any]] = []
     seen_samples = 0
     sample_idx = -1
+    candidate_sample_idxs: List[int] = []
+    confirmed_sample_idxs: List[int] = []
+    acc_series: List[Tuple[int, float]] = []
     severity_calibrator: Optional[SeverityCalibrator] = None
     severity_carry = 0.0
     baseline_freeze_remaining = 0
+    severity_confirmed_streak = 0
     severity_scheduler_cfg = config.severity_scheduler_config or SeveritySchedulerConfig()
     severity_scheduler_cfg = replace(
         severity_scheduler_cfg,
@@ -208,9 +215,18 @@ def run_training_loop(
         severity_raw = 0.0
         severity_norm = 0.0
         severity_confirmed = True
-        if str(config.severity_gate).lower() == "confirmed_only":
+        gate_mode = str(config.severity_gate).lower()
+        if gate_mode in {"confirmed_only", "confirmed_streak"}:
             vote = float(monitor_vote_score) if monitor_vote_score is not None else 0.0
-            severity_confirmed = bool(drift_flag) and vote >= float(config.trigger_threshold)
+            severity_event = bool(drift_flag) and vote >= float(config.trigger_threshold)
+            severity_confirmed_streak = severity_confirmed_streak + 1 if severity_event else 0
+            if gate_mode == "confirmed_only":
+                severity_confirmed = severity_event
+            else:
+                min_streak = max(1, int(getattr(config, "severity_gate_min_streak", 1) or 1))
+                severity_confirmed = severity_confirmed_streak >= min_streak
+        else:
+            severity_confirmed_streak = 0
         if severity_calibrator and drift_flag:
             severity_raw, severity_norm = severity_calibrator.compute_severity(
                 signals["error_rate"],
@@ -253,6 +269,11 @@ def run_training_loop(
             stats["student_probs_unlabeled"],
             y_unlabeled_np,
         )
+        acc_series.append((int(sample_idx), float(acc_value)))
+        if candidate_flag:
+            candidate_sample_idxs.append(int(sample_idx))
+        if drift_flag:
+            confirmed_sample_idxs.append(int(sample_idx))
         logs.append(
             {
                 "step": step,
@@ -289,6 +310,8 @@ def run_training_loop(
                 "use_severity_v2": int(bool(config.use_severity_v2)),
                 "severity_gate": str(config.severity_gate),
                 "severity_confirmed": int(bool(severity_confirmed)) if drift_flag else 0,
+                "severity_gate_min_streak": int(getattr(config, "severity_gate_min_streak", 1) or 1),
+                "severity_confirmed_streak": int(severity_confirmed_streak) if drift_flag else 0,
                 "entropy_mode": config.entropy_mode,
                 "decay": float(config.severity_decay),
                 "freeze_baseline_steps": int(config.freeze_baseline_steps),
@@ -308,6 +331,48 @@ def run_training_loop(
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
         df.to_csv(config.log_path, index=False)
+        # sidecar summary：用于后续指标统计，避免对大日志做全量扫描
+        try:
+            summary_path = Path(config.log_path).with_suffix(".summary.json")
+            horizon = int(df["sample_idx"].iloc[-1] + 1) if not df.empty else 0
+            acc_final = float(df["metric_accuracy"].iloc[-1]) if not df.empty else float("nan")
+            mean_acc = float(df["metric_accuracy"].mean()) if not df.empty else float("nan")
+            acc_min = float(df["metric_accuracy"].min()) if not df.empty else float("nan")
+            last = df.iloc[-1] if not df.empty else None
+            payload: Dict[str, Any] = {
+                "dataset_name": config.dataset_name,
+                "dataset_type": config.dataset_type,
+                "model_variant": config.model_variant,
+                "seed": int(config.seed),
+                "monitor_preset": config.monitor_preset,
+                "trigger_mode": config.trigger_mode,
+                "trigger_k": int(config.trigger_k),
+                "trigger_threshold": float(config.trigger_threshold),
+                "trigger_weights": config.trigger_weights,
+                "confirm_window": int(config.confirm_window),
+                "severity_scheduler_scale": float(config.severity_scheduler_scale),
+                "use_severity_v2": int(bool(config.use_severity_v2)),
+                "severity_gate": str(config.severity_gate),
+                "severity_gate_min_streak": int(getattr(config, "severity_gate_min_streak", 1) or 1),
+                "entropy_mode": str(config.entropy_mode),
+                "severity_decay": float(config.severity_decay),
+                "freeze_baseline_steps": int(config.freeze_baseline_steps),
+                "n_steps": int(config.n_steps),
+                "horizon": horizon,
+                "acc_final": acc_final,
+                "mean_acc": mean_acc,
+                "acc_min": acc_min,
+                "candidate_sample_idxs": candidate_sample_idxs,
+                "confirmed_sample_idxs": confirmed_sample_idxs,
+                "acc_series": [[int(x), float(a)] for x, a in acc_series],
+                "candidate_count_total": int(last["candidate_count_total"]) if last is not None else 0,
+                "confirmed_count_total": int(last["confirmed_count_total"]) if last is not None else 0,
+                "created_at": float(time.time()),
+            }
+            summary_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            # summary 写失败不应影响主流程
+            pass
     return df
 
 

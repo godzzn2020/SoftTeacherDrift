@@ -151,8 +151,14 @@ def parse_args() -> argparse.Namespace:
         "--severity_gate",
         type=str,
         default="none",
-        choices=["none", "confirmed_only"],
-        help="severity v2 gating（confirmed_only 仅高置信 drift 更新 carry/freeze）",
+        choices=["none", "confirmed_only", "confirmed_streak"],
+        help="severity v2 gating（confirmed_only 仅高置信 drift 更新 carry/freeze；confirmed_streak 需要连续满足条件）",
+    )
+    parser.add_argument(
+        "--severity_gate_min_streak",
+        type=int,
+        default=1,
+        help="severity_gate=confirmed_streak 时的最小连续确认步数（>=1）",
     )
     parser.add_argument(
         "--entropy_mode",
@@ -239,6 +245,12 @@ def build_command(
     if experiment_run_params.get("use_severity_v2"):
         cmd.append("--use_severity_v2")
         cmd.extend(["--severity_gate", str(experiment_run_params.get("severity_gate", "none"))])
+        cmd.extend(
+            [
+                "--severity_gate_min_streak",
+                str(int(experiment_run_params.get("severity_gate_min_streak", 1) or 1)),
+            ]
+        )
         cmd.extend(["--entropy_mode", str(experiment_run_params.get("entropy_mode", "overconfident"))])
         cmd.extend(["--severity_decay", str(experiment_run_params.get("severity_decay", 0.95))])
         cmd.extend(["--freeze_baseline_steps", str(experiment_run_params.get("freeze_baseline_steps", 0))])
@@ -260,11 +272,12 @@ def run_dataset(
     trigger_threshold: float = 0.5,
     trigger_weights: str = "",
     use_severity_v2: bool = False,
+    severity_gate: str = "none",
+    severity_gate_min_streak: int = 1,
     entropy_mode: str = "overconfident",
     severity_decay: float = 0.95,
     freeze_baseline_steps: int = 0,
     confirm_window: int = 200,
-    severity_gate: str = "none",
 ) -> None:
     for variant in model_variants:
         for seed in seeds:
@@ -278,6 +291,7 @@ def run_dataset(
                 "confirm_window": confirm_window,
                 "use_severity_v2": use_severity_v2,
                 "severity_gate": severity_gate,
+                "severity_gate_min_streak": int(severity_gate_min_streak),
                 "entropy_mode": entropy_mode,
                 "severity_decay": severity_decay,
                 "freeze_baseline_steps": freeze_baseline_steps,
@@ -317,6 +331,7 @@ def main() -> None:
     confirm_window = int(args.confirm_window)
     use_severity_v2 = bool(args.use_severity_v2)
     severity_gate = str(args.severity_gate)
+    severity_gate_min_streak = int(getattr(args, "severity_gate_min_streak", 1) or 1)
     entropy_mode = str(args.entropy_mode)
     severity_decay = float(args.severity_decay)
     freeze_baseline_steps = int(args.freeze_baseline_steps)
@@ -341,6 +356,7 @@ def main() -> None:
             confirm_window=confirm_window,
             use_severity_v2=use_severity_v2,
             severity_gate=severity_gate,
+            severity_gate_min_streak=severity_gate_min_streak,
             entropy_mode=entropy_mode,
             severity_decay=severity_decay,
             freeze_baseline_steps=freeze_baseline_steps,

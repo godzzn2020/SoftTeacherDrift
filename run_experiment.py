@@ -121,8 +121,14 @@ def parse_args() -> argparse.Namespace:
         "--severity_gate",
         type=str,
         default="none",
-        choices=["none", "confirmed_only"],
-        help="severity v2 的 gating：confirmed_only 表示仅在票分 >= trigger_threshold 的 drift 才更新 carry/freeze",
+        choices=["none", "confirmed_only", "confirmed_streak"],
+        help="severity v2 的 gating：confirmed_only 表示仅在票分 >= trigger_threshold 的 drift 才更新 carry/freeze；confirmed_streak 表示需要连续满足该条件 >= severity_gate_min_streak",
+    )
+    parser.add_argument(
+        "--severity_gate_min_streak",
+        type=int,
+        default=1,
+        help="severity_gate=confirmed_streak 时的最小连续确认步数（>=1；1 等价于 confirmed_only）",
     )
     parser.add_argument(
         "--entropy_mode",
@@ -192,6 +198,7 @@ def main() -> None:
         confirm_window=int(args.confirm_window),
         use_severity_v2=bool(args.use_severity_v2),
         severity_gate=str(args.severity_gate),
+        severity_gate_min_streak=int(getattr(args, "severity_gate_min_streak", 1) or 1),
         entropy_mode=str(args.entropy_mode),
         severity_decay=float(args.severity_decay),
         freeze_baseline_steps=int(args.freeze_baseline_steps),

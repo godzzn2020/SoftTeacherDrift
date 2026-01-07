@@ -49,6 +49,7 @@ class Args:
     confirm_window: int
     use_severity_v2: bool
     severity_gate: str
+    severity_gate_min_streak: int
     entropy_mode: str
     severity_decay: float
     freeze_baseline_steps: int
@@ -127,8 +128,14 @@ def parse_args() -> Args:
         "--severity_gate",
         type=str,
         default="none",
-        choices=["none", "confirmed_only"],
-        help="severity v2 gating（confirmed_only 仅高置信 drift 更新 carry/freeze）",
+        choices=["none", "confirmed_only", "confirmed_streak"],
+        help="severity v2 gating（confirmed_only 仅高置信 drift 更新 carry/freeze；confirmed_streak 需要连续满足条件）",
+    )
+    parser.add_argument(
+        "--severity_gate_min_streak",
+        type=int,
+        default=1,
+        help="severity_gate=confirmed_streak 时的最小连续确认步数（>=1）",
     )
     parser.add_argument(
         "--entropy_mode",
@@ -212,6 +219,7 @@ def parse_args() -> Args:
         confirm_window=int(ns.confirm_window),
         use_severity_v2=bool(ns.use_severity_v2),
         severity_gate=str(ns.severity_gate),
+        severity_gate_min_streak=int(getattr(ns, "severity_gate_min_streak", 1) or 1),
         entropy_mode=str(ns.entropy_mode),
         severity_decay=float(ns.severity_decay),
         freeze_baseline_steps=int(ns.freeze_baseline_steps),
@@ -252,6 +260,7 @@ def build_command(
     confirm_window: int,
     use_severity_v2: bool,
     severity_gate: str,
+    severity_gate_min_streak: int,
     entropy_mode: str,
     severity_decay: float,
     freeze_baseline_steps: int,
@@ -322,6 +331,7 @@ def build_command(
     if use_severity_v2:
         cmd.append("--use_severity_v2")
         cmd.extend(["--severity_gate", str(severity_gate)])
+        cmd.extend(["--severity_gate_min_streak", str(int(severity_gate_min_streak))])
         cmd.extend(["--entropy_mode", str(entropy_mode)])
         cmd.extend(["--severity_decay", str(severity_decay)])
         cmd.extend(["--freeze_baseline_steps", str(freeze_baseline_steps)])
@@ -446,6 +456,7 @@ def create_tasks(
     confirm_window: int,
     use_severity_v2: bool,
     severity_gate: str,
+    severity_gate_min_streak: int,
     entropy_mode: str,
     severity_decay: float,
     freeze_baseline_steps: int,
@@ -471,6 +482,7 @@ def create_tasks(
                     confirm_window,
                     use_severity_v2,
                     severity_gate,
+                    severity_gate_min_streak,
                     entropy_mode,
                     severity_decay,
                     freeze_baseline_steps,
@@ -570,6 +582,7 @@ def main() -> None:
         confirm_window=args.confirm_window,
         use_severity_v2=args.use_severity_v2,
         severity_gate=args.severity_gate,
+        severity_gate_min_streak=args.severity_gate_min_streak,
         entropy_mode=args.entropy_mode,
         severity_decay=args.severity_decay,
         freeze_baseline_steps=args.freeze_baseline_steps,
