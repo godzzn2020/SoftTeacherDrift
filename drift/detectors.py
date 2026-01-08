@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import math
 
@@ -38,6 +38,120 @@ def _resolve_signal(values: Dict[str, float], key: str) -> float:
 def _ph_detector(**kwargs: float) -> drift.PageHinkley:
     """创建 PageHinkley 实例。"""
     return drift.PageHinkley(**kwargs)
+
+
+PH_PARAM_KEYS = ("threshold", "delta", "alpha", "min_instances")
+
+DEFAULT_PH_PARAMS: Dict[str, Dict[str, Any]] = {
+    "error_rate": {"delta": 0.005, "alpha": 0.15, "threshold": 0.2, "min_instances": 25},
+    "divergence": {"delta": 0.005, "alpha": 0.1, "threshold": 0.05, "min_instances": 30},
+    "teacher_entropy": {"delta": 0.01, "alpha": 0.3, "threshold": 0.5, "min_instances": 20},
+}
+
+
+def _normalize_ph_overrides(overrides: Optional[Dict[str, Dict[str, Any]]]) -> Dict[str, Dict[str, Any]]:
+    if not overrides:
+        return {}
+    out: Dict[str, Dict[str, Any]] = {}
+    for signal, params in overrides.items():
+        if signal not in DEFAULT_PH_PARAMS or not isinstance(params, dict):
+            continue
+        clean: Dict[str, Any] = {}
+        for k, v in params.items():
+            if k not in PH_PARAM_KEYS or v is None:
+                continue
+            if k == "min_instances":
+                clean[k] = int(float(v))
+            else:
+                clean[k] = float(v)
+        if clean:
+            out[signal] = clean
+    return out
+
+
+def _parse_preset_inline_overrides(preset: str) -> Tuple[str, Dict[str, Dict[str, Any]]]:
+    """
+    支持通过 monitor_preset 字符串内联覆盖 PH 参数：
+      - 语法：<base_preset>@error.threshold=0.1,error.min_instances=10,divergence.threshold=0.02
+      - signal 前缀：error/divergence/entropy（分别映射到 error_rate/divergence/teacher_entropy）
+      - 参数名：threshold/delta/alpha/min_instances
+    """
+    if "@" not in (preset or ""):
+        return preset, {}
+    base, spec = preset.split("@", 1)
+    base = base.strip()
+    spec = (spec or "").strip()
+    if not spec:
+        return base, {}
+    signal_alias = {
+        "error": "error_rate",
+        "err": "error_rate",
+        "divergence": "divergence",
+        "div": "divergence",
+        "entropy": "teacher_entropy",
+        "ent": "teacher_entropy",
+    }
+    param_alias = {
+        "threshold": "threshold",
+        "delta": "delta",
+        "alpha": "alpha",
+        "min_instances": "min_instances",
+        "min": "min_instances",
+    }
+    overrides: Dict[str, Dict[str, Any]] = {}
+    for token in spec.split(","):
+        token = token.strip()
+        if not token or "=" not in token:
+            continue
+        left, raw = token.split("=", 1)
+        left = left.strip()
+        raw = raw.strip()
+        if not left or not raw:
+            continue
+        if "." in left:
+            sig, param = left.split(".", 1)
+        elif "_" in left:
+            sig, param = left.split("_", 1)
+        else:
+            continue
+        sig_key = signal_alias.get(sig.strip().lower())
+        param_key = param_alias.get(param.strip().lower())
+        if sig_key is None or param_key is None:
+            continue
+        overrides.setdefault(sig_key, {})[param_key] = raw
+    return base, _normalize_ph_overrides(overrides)
+
+
+def _build_detectors_with_params(
+    preset: str,
+    ph_overrides: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Tuple[Dict[str, drift.base.DriftDetector], Dict[str, Dict[str, Any]]]:
+    if preset in {"error_ph_meta", "error_only_ph_meta"}:
+        signals = ["error_rate"]
+    elif preset == "entropy_only_ph_meta":
+        signals = ["teacher_entropy"]
+    elif preset in {"divergence_ph_meta", "divergence_only_ph_meta"}:
+        signals = ["divergence"]
+    elif preset == "error_entropy_ph_meta":
+        signals = ["error_rate", "teacher_entropy"]
+    elif preset == "error_divergence_ph_meta":
+        signals = ["error_rate", "divergence"]
+    elif preset == "entropy_divergence_ph_meta":
+        signals = ["teacher_entropy", "divergence"]
+    elif preset == "all_signals_ph_meta":
+        signals = ["error_rate", "teacher_entropy", "divergence"]
+    else:
+        raise ValueError(f"未知 monitor preset: {preset}")
+
+    overrides = _normalize_ph_overrides(ph_overrides)
+    used: Dict[str, Dict[str, Any]] = {}
+    detectors_dict: Dict[str, drift.base.DriftDetector] = {}
+    for sig in signals:
+        params: Dict[str, Any] = dict(DEFAULT_PH_PARAMS.get(sig, {}))
+        params.update(overrides.get(sig, {}))
+        used[sig] = dict(params)
+        detectors_dict[sig] = _ph_detector(**params)  # type: ignore[arg-type]
+    return detectors_dict, used
 
 
 def _error_signal_detector() -> Dict[str, drift.base.DriftDetector]:
@@ -228,6 +342,7 @@ def build_default_monitor(
     trigger_weights: Optional[Dict[str, float]] = None,
     trigger_threshold: float = 0.5,
     confirm_window: int = 200,
+    ph_overrides: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> DriftMonitor:
     """根据预设构建监控器。"""
     if preset == "none":
@@ -239,11 +354,12 @@ def build_default_monitor(
             trigger_threshold=trigger_threshold,
             confirm_window=confirm_window,
         )
-    factory = MONITOR_PRESETS.get(preset)
-    if factory is None:
-        raise ValueError(f"未知 monitor preset: {preset}")
-    detectors_dict = factory()
-    return DriftMonitor(
+    base_preset, inline_overrides = _parse_preset_inline_overrides(preset)
+    merged_overrides = _normalize_ph_overrides(ph_overrides)
+    for sig, params in inline_overrides.items():
+        merged_overrides.setdefault(sig, {}).update(params)
+    detectors_dict, used_params = _build_detectors_with_params(base_preset, merged_overrides)
+    monitor = DriftMonitor(
         detectors=detectors_dict,
         trigger_mode=trigger_mode,
         trigger_k=trigger_k,
@@ -251,3 +367,7 @@ def build_default_monitor(
         trigger_threshold=trigger_threshold,
         confirm_window=confirm_window,
     )
+    setattr(monitor, "preset_base", base_preset)
+    setattr(monitor, "ph_overrides", merged_overrides)
+    setattr(monitor, "ph_params", used_params)
+    return monitor

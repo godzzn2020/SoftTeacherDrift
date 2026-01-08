@@ -48,6 +48,20 @@
 
 > 说明：多个信号组合时，会为每个信号创建独立的 PageHinkley 实例，只要任一信号触发就视为漂移。旧名称 `error_ph_meta` 与 `divergence_ph_meta` 仍保持兼容，等价于单信号版本。
 
+### PageHinkley 参数覆盖（用于延迟优化）
+
+为了在不新增大量 preset 的情况下快速调参，`build_default_monitor(...)` 支持通过 `monitor_preset` 字符串内联覆盖部分 PH 参数（保持 base preset 名称不变）：
+
+- 语法：`<base_preset>@error.threshold=0.1,error.min_instances=10,divergence.threshold=0.02`
+- 支持信号前缀：`error` / `divergence` / `entropy`
+- 支持参数名：`threshold` / `delta` / `alpha` / `min_instances`
+
+训练日志会记录最终生效的参数，便于离线汇总：
+
+- `monitor_preset_base`：解析后的 base preset（去掉 `@...` 覆盖部分）
+- `monitor_ph_params`：最终 PH 参数 JSON（按 signal 分组）
+- 便捷列：`ph_error_*` / `ph_divergence_*` / `ph_entropy_*`
+
 ## 严重度校准（SeverityCalibrator）
 
 - `soft_drift/severity.py` 在训练循环中实时维护误差/散度/熵的 EMA 基线：

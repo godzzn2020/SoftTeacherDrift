@@ -142,6 +142,30 @@ def run_training_loop(
     candidate_sample_idxs: List[int] = []
     confirmed_sample_idxs: List[int] = []
     acc_series: List[Tuple[int, float]] = []
+    monitor_preset_base = str(getattr(drift_monitor, "preset_base", config.monitor_preset) or "")
+    monitor_ph_params = getattr(drift_monitor, "ph_params", None) or {}
+    monitor_ph_overrides = getattr(drift_monitor, "ph_overrides", None) or {}
+    try:
+        monitor_ph_params_json = json.dumps(monitor_ph_params, ensure_ascii=False, sort_keys=True)
+        monitor_ph_overrides_json = json.dumps(monitor_ph_overrides, ensure_ascii=False, sort_keys=True)
+    except Exception:
+        monitor_ph_params_json = ""
+        monitor_ph_overrides_json = ""
+    ph_error = monitor_ph_params.get("error_rate", {}) if isinstance(monitor_ph_params, dict) else {}
+    ph_div = monitor_ph_params.get("divergence", {}) if isinstance(monitor_ph_params, dict) else {}
+    ph_ent = monitor_ph_params.get("teacher_entropy", {}) if isinstance(monitor_ph_params, dict) else {}
+    ph_error_threshold = float(ph_error.get("threshold")) if isinstance(ph_error, dict) and ph_error.get("threshold") is not None else float("nan")
+    ph_error_delta = float(ph_error.get("delta")) if isinstance(ph_error, dict) and ph_error.get("delta") is not None else float("nan")
+    ph_error_alpha = float(ph_error.get("alpha")) if isinstance(ph_error, dict) and ph_error.get("alpha") is not None else float("nan")
+    ph_error_min_instances = int(float(ph_error.get("min_instances"))) if isinstance(ph_error, dict) and ph_error.get("min_instances") is not None else -1
+    ph_div_threshold = float(ph_div.get("threshold")) if isinstance(ph_div, dict) and ph_div.get("threshold") is not None else float("nan")
+    ph_div_delta = float(ph_div.get("delta")) if isinstance(ph_div, dict) and ph_div.get("delta") is not None else float("nan")
+    ph_div_alpha = float(ph_div.get("alpha")) if isinstance(ph_div, dict) and ph_div.get("alpha") is not None else float("nan")
+    ph_div_min_instances = int(float(ph_div.get("min_instances"))) if isinstance(ph_div, dict) and ph_div.get("min_instances") is not None else -1
+    ph_ent_threshold = float(ph_ent.get("threshold")) if isinstance(ph_ent, dict) and ph_ent.get("threshold") is not None else float("nan")
+    ph_ent_delta = float(ph_ent.get("delta")) if isinstance(ph_ent, dict) and ph_ent.get("delta") is not None else float("nan")
+    ph_ent_alpha = float(ph_ent.get("alpha")) if isinstance(ph_ent, dict) and ph_ent.get("alpha") is not None else float("nan")
+    ph_ent_min_instances = int(float(ph_ent.get("min_instances"))) if isinstance(ph_ent, dict) and ph_ent.get("min_instances") is not None else -1
     severity_calibrator: Optional[SeverityCalibrator] = None
     severity_carry = 0.0
     baseline_freeze_remaining = 0
@@ -284,6 +308,21 @@ def run_training_loop(
                 "model_variant": config.model_variant,
                 "seed": config.seed,
                 "monitor_preset": config.monitor_preset,
+                "monitor_preset_base": monitor_preset_base,
+                "monitor_ph_params": monitor_ph_params_json,
+                "monitor_ph_overrides": monitor_ph_overrides_json,
+                "ph_error_threshold": ph_error_threshold,
+                "ph_error_delta": ph_error_delta,
+                "ph_error_alpha": ph_error_alpha,
+                "ph_error_min_instances": ph_error_min_instances,
+                "ph_divergence_threshold": ph_div_threshold,
+                "ph_divergence_delta": ph_div_delta,
+                "ph_divergence_alpha": ph_div_alpha,
+                "ph_divergence_min_instances": ph_div_min_instances,
+                "ph_entropy_threshold": ph_ent_threshold,
+                "ph_entropy_delta": ph_ent_delta,
+                "ph_entropy_alpha": ph_ent_alpha,
+                "ph_entropy_min_instances": ph_ent_min_instances,
                 "trigger_mode": config.trigger_mode,
                 "trigger_k": int(config.trigger_k),
                 "trigger_threshold": float(config.trigger_threshold),
@@ -345,6 +384,9 @@ def run_training_loop(
                 "model_variant": config.model_variant,
                 "seed": int(config.seed),
                 "monitor_preset": config.monitor_preset,
+                "monitor_preset_base": monitor_preset_base,
+                "monitor_ph_params": monitor_ph_params,
+                "monitor_ph_overrides": monitor_ph_overrides,
                 "trigger_mode": config.trigger_mode,
                 "trigger_k": int(config.trigger_k),
                 "trigger_threshold": float(config.trigger_threshold),
