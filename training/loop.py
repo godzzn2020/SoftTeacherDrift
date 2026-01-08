@@ -158,6 +158,49 @@ def run_training_loop(
             except Exception:
                 continue
     setattr(drift_monitor, "confirm_cooldown", int(confirm_cooldown))
+    # 自适应 cooldown 参数同样通过 trigger_weights 透传；这里只做日志记录/显式注入（便于复现）。
+    adaptive_enabled = False
+    adaptive_window = 10000
+    adaptive_lower_per10k = 10.0
+    adaptive_upper_per10k = 25.0
+    adaptive_cooldown_low = 200
+    adaptive_cooldown_high = 500
+    if isinstance(trigger_weights_obj, dict):
+        def _get(keys: tuple[str, ...]) -> Optional[float]:
+            for k in keys:
+                if k not in trigger_weights_obj:
+                    continue
+                try:
+                    return float(trigger_weights_obj[k])  # type: ignore[arg-type]
+                except Exception:
+                    return None
+            return None
+
+        v = _get(("adaptive_cooldown", "adaptive_cd", "adaptive"))
+        if v is not None:
+            adaptive_enabled = bool(int(v))
+        v = _get(("adaptive_window", "adaptive_win"))
+        if v is not None:
+            adaptive_window = max(1, int(v))
+        v = _get(("adaptive_lower_per10k", "adaptive_lower"))
+        if v is not None:
+            adaptive_lower_per10k = max(0.0, float(v))
+        v = _get(("adaptive_upper_per10k", "adaptive_upper"))
+        if v is not None:
+            adaptive_upper_per10k = max(adaptive_lower_per10k, float(v))
+        v = _get(("adaptive_cooldown_low", "adaptive_low"))
+        if v is not None:
+            adaptive_cooldown_low = max(0, int(v))
+        v = _get(("adaptive_cooldown_high", "adaptive_high"))
+        if v is not None:
+            adaptive_cooldown_high = max(0, int(v))
+
+    setattr(drift_monitor, "adaptive_cooldown_enabled", bool(adaptive_enabled))
+    setattr(drift_monitor, "adaptive_window", int(adaptive_window))
+    setattr(drift_monitor, "adaptive_lower_per10k", float(adaptive_lower_per10k))
+    setattr(drift_monitor, "adaptive_upper_per10k", float(adaptive_upper_per10k))
+    setattr(drift_monitor, "adaptive_cooldown_low", int(adaptive_cooldown_low))
+    setattr(drift_monitor, "adaptive_cooldown_high", int(adaptive_cooldown_high))
     try:
         monitor_ph_params_json = json.dumps(monitor_ph_params, ensure_ascii=False, sort_keys=True)
         monitor_ph_overrides_json = json.dumps(monitor_ph_overrides, ensure_ascii=False, sort_keys=True)
@@ -241,6 +284,9 @@ def run_training_loop(
         confirmed_count_total = int(getattr(drift_monitor, "confirmed_count_total", 0))
         cooldown_active = bool(getattr(drift_monitor, "last_cooldown_active", False))
         cooldown_remaining = int(getattr(drift_monitor, "last_cooldown_remaining", 0) or 0)
+        effective_cooldown = int(getattr(drift_monitor, "last_effective_confirm_cooldown", confirm_cooldown) or 0)
+        confirm_rate_per10k = float(getattr(drift_monitor, "last_confirm_rate_per10k", 0.0) or 0.0)
+        adaptive_active = bool(getattr(drift_monitor, "last_adaptive_cooldown_enabled", False))
 
         if severity_calibrator:
             if baseline_freeze_remaining > 0:
@@ -344,6 +390,14 @@ def run_training_loop(
                 "trigger_weights": config.trigger_weights,
                 "confirm_window": int(config.confirm_window),
                 "confirm_cooldown": int(confirm_cooldown),
+                "effective_confirm_cooldown": int(effective_cooldown),
+                "confirm_rate_per10k": float(confirm_rate_per10k),
+                "adaptive_cooldown_enabled": int(bool(adaptive_active)),
+                "adaptive_window": int(adaptive_window),
+                "adaptive_lower_per10k": float(adaptive_lower_per10k),
+                "adaptive_upper_per10k": float(adaptive_upper_per10k),
+                "adaptive_cooldown_low": int(adaptive_cooldown_low),
+                "adaptive_cooldown_high": int(adaptive_cooldown_high),
                 "confirm_cooldown_active": int(bool(cooldown_active)),
                 "confirm_cooldown_remaining": int(cooldown_remaining),
                 "severity_scheduler_scale": float(config.severity_scheduler_scale),
@@ -411,6 +465,12 @@ def run_training_loop(
                 "trigger_weights": config.trigger_weights,
                 "confirm_window": int(config.confirm_window),
                 "confirm_cooldown": int(confirm_cooldown),
+                "adaptive_cooldown_enabled": int(bool(adaptive_enabled)),
+                "adaptive_window": int(adaptive_window),
+                "adaptive_lower_per10k": float(adaptive_lower_per10k),
+                "adaptive_upper_per10k": float(adaptive_upper_per10k),
+                "adaptive_cooldown_low": int(adaptive_cooldown_low),
+                "adaptive_cooldown_high": int(adaptive_cooldown_high),
                 "severity_scheduler_scale": float(config.severity_scheduler_scale),
                 "use_severity_v2": int(bool(config.use_severity_v2)),
                 "severity_gate": str(config.severity_gate),

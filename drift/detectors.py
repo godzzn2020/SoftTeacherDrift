@@ -264,6 +264,12 @@ class DriftMonitor:
         self._last_confirmed_pos: Optional[int] = None
         self.last_cooldown_active: bool = False
         self.last_cooldown_remaining: int = 0
+        # adaptive cooldown state（按 sample_idx/step 时间轴）
+        self._recent_confirm_positions: List[int] = []
+        self._adaptive_current_cooldown: int = 0
+        self.last_effective_confirm_cooldown: int = 0
+        self.last_confirm_rate_per10k: float = 0.0
+        self.last_adaptive_cooldown_enabled: bool = False
 
     def _resolve_confirm_cooldown(self) -> int:
         cooldown = int(getattr(self, "confirm_cooldown", 0) or 0)
@@ -279,6 +285,91 @@ class DriftMonitor:
                 except Exception:
                     continue
         return 0
+
+    def _resolve_adaptive_cfg(self) -> Dict[str, Any]:
+        """
+        从属性或 trigger_weights 解析自适应 cooldown 参数。
+
+        约定（优先级：显式属性 > trigger_weights）：
+          - adaptive_cooldown_enabled: 0/1
+          - adaptive_window: 最近窗口长度（sample_idx）
+          - adaptive_lower_per10k / adaptive_upper_per10k: 触发阈值（confirm_rate_per_10k）
+          - adaptive_cooldown_low / adaptive_cooldown_high: 低/高 cooldown（sample_idx）
+        """
+        cfg: Dict[str, Any] = {
+            "enabled": bool(getattr(self, "adaptive_cooldown_enabled", False)),
+            "window": int(getattr(self, "adaptive_window", 10000) or 10000),
+            "lower_per10k": float(getattr(self, "adaptive_lower_per10k", 10.0) or 10.0),
+            "upper_per10k": float(getattr(self, "adaptive_upper_per10k", 25.0) or 25.0),
+            "cooldown_low": int(getattr(self, "adaptive_cooldown_low", 200) or 200),
+            "cooldown_high": int(getattr(self, "adaptive_cooldown_high", 500) or 500),
+        }
+
+        tw = getattr(self, "trigger_weights", None)
+        if isinstance(tw, dict):
+            def _get(keys: Tuple[str, ...]) -> Optional[float]:
+                for k in keys:
+                    if k not in tw:
+                        continue
+                    try:
+                        return float(tw[k])  # type: ignore[arg-type]
+                    except Exception:
+                        return None
+                return None
+
+            enabled_v = _get(("adaptive_cooldown", "adaptive_cd", "adaptive"))
+            if enabled_v is not None:
+                cfg["enabled"] = bool(int(enabled_v))
+            window_v = _get(("adaptive_window", "adaptive_win"))
+            if window_v is not None:
+                cfg["window"] = int(window_v)
+            lower_v = _get(("adaptive_lower_per10k", "adaptive_lower"))
+            if lower_v is not None:
+                cfg["lower_per10k"] = float(lower_v)
+            upper_v = _get(("adaptive_upper_per10k", "adaptive_upper"))
+            if upper_v is not None:
+                cfg["upper_per10k"] = float(upper_v)
+            low_v = _get(("adaptive_cooldown_low", "adaptive_low"))
+            if low_v is not None:
+                cfg["cooldown_low"] = int(low_v)
+            high_v = _get(("adaptive_cooldown_high", "adaptive_high"))
+            if high_v is not None:
+                cfg["cooldown_high"] = int(high_v)
+
+        cfg["window"] = max(1, int(cfg["window"] or 1))
+        cfg["cooldown_low"] = max(0, int(cfg["cooldown_low"] or 0))
+        cfg["cooldown_high"] = max(0, int(cfg["cooldown_high"] or 0))
+        cfg["lower_per10k"] = max(0.0, float(cfg["lower_per10k"] or 0.0))
+        cfg["upper_per10k"] = max(float(cfg["lower_per10k"]), float(cfg["upper_per10k"] or 0.0))
+        return cfg
+
+    def _resolve_effective_cooldown(self, current_pos: int) -> Tuple[int, float, bool]:
+        cfg = self._resolve_adaptive_cfg()
+        enabled = bool(cfg.get("enabled"))
+        if not enabled:
+            return self._resolve_confirm_cooldown(), 0.0, False
+
+        window = int(cfg["window"])
+        # 维护最近窗口内 confirm 位置
+        if self._recent_confirm_positions:
+            cutoff = int(current_pos - window)
+            # confirm 数量通常很小，这里用线性裁剪即可
+            self._recent_confirm_positions = [x for x in self._recent_confirm_positions if int(x) >= cutoff]
+        count = len(self._recent_confirm_positions)
+        rate_per10k = (count * 10000.0) / float(window) if window > 0 else 0.0
+
+        lower = float(cfg["lower_per10k"])
+        upper = float(cfg["upper_per10k"])
+        cd_low = int(cfg["cooldown_low"])
+        cd_high = int(cfg["cooldown_high"])
+        if rate_per10k > upper:
+            cd = cd_high
+        elif rate_per10k < lower:
+            cd = cd_low
+        else:
+            cd = int(self._adaptive_current_cooldown or cd_low)
+        self._adaptive_current_cooldown = int(cd)
+        return int(cd), float(rate_per10k), True
 
     def update(self, values: Dict[str, float], step: int, sample_idx: Optional[int] = None) -> Tuple[bool, float]:
         """输入最新批次统计，返回漂移标志与严重度。"""
@@ -315,8 +406,8 @@ class DriftMonitor:
         candidate_flag = vote_count >= 1
         drift_flag = False
         confirm_delay = -1
-        cooldown = self._resolve_confirm_cooldown()
         current_pos = int(sample_idx) if sample_idx is not None else int(step)
+        cooldown, rate_per10k, adaptive_enabled = self._resolve_effective_cooldown(current_pos)
         cooldown_active = False
         cooldown_remaining = 0
         if cooldown > 0 and self._last_confirmed_pos is not None:
@@ -363,11 +454,15 @@ class DriftMonitor:
         self.last_confirm_delay = int(confirm_delay)
         self.last_cooldown_active = bool(cooldown_active)
         self.last_cooldown_remaining = int(cooldown_remaining)
+        self.last_effective_confirm_cooldown = int(cooldown)
+        self.last_confirm_rate_per10k = float(rate_per10k)
+        self.last_adaptive_cooldown_enabled = bool(adaptive_enabled)
 
         if drift_flag:
             self.history.append(step)
             self.last_drift_step = step
             self._last_confirmed_pos = int(current_pos)
+            self._recent_confirm_positions.append(int(current_pos))
         return drift_flag, monitor_severity
 
 
