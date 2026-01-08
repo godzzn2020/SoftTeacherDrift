@@ -145,6 +145,19 @@ def run_training_loop(
     monitor_preset_base = str(getattr(drift_monitor, "preset_base", config.monitor_preset) or "")
     monitor_ph_params = getattr(drift_monitor, "ph_params", None) or {}
     monitor_ph_overrides = getattr(drift_monitor, "ph_overrides", None) or {}
+    # confirm_cooldown 通过 trigger_weights 透传（避免改动 ExperimentConfig）；单位为 sample_idx。
+    confirm_cooldown = 0
+    trigger_weights_obj = getattr(config, "trigger_weights", None)
+    if isinstance(trigger_weights_obj, dict):
+        for key in ("confirm_cooldown", "__confirm_cooldown", "cooldown"):
+            if key not in trigger_weights_obj:
+                continue
+            try:
+                confirm_cooldown = max(0, int(float(trigger_weights_obj[key])))  # type: ignore[arg-type]
+                break
+            except Exception:
+                continue
+    setattr(drift_monitor, "confirm_cooldown", int(confirm_cooldown))
     try:
         monitor_ph_params_json = json.dumps(monitor_ph_params, ensure_ascii=False, sort_keys=True)
         monitor_ph_overrides_json = json.dumps(monitor_ph_overrides, ensure_ascii=False, sort_keys=True)
@@ -218,7 +231,7 @@ def run_training_loop(
 
         stats = _collect_statistics(losses, y_labeled_np, y_unlabeled_np)
         signals = stats["signals"]
-        drift_flag, monitor_severity = drift_monitor.update(signals, step)
+        drift_flag, monitor_severity = drift_monitor.update(signals, step, sample_idx=int(sample_idx))
         monitor_vote_count = getattr(drift_monitor, "last_vote_count", None)
         monitor_vote_score = getattr(drift_monitor, "last_vote_score", None)
         monitor_fused_severity = getattr(drift_monitor, "last_fused_severity", None)
@@ -226,6 +239,8 @@ def run_training_loop(
         confirm_delay = int(getattr(drift_monitor, "last_confirm_delay", -1))
         candidate_count_total = int(getattr(drift_monitor, "candidate_count_total", 0))
         confirmed_count_total = int(getattr(drift_monitor, "confirmed_count_total", 0))
+        cooldown_active = bool(getattr(drift_monitor, "last_cooldown_active", False))
+        cooldown_remaining = int(getattr(drift_monitor, "last_cooldown_remaining", 0) or 0)
 
         if severity_calibrator:
             if baseline_freeze_remaining > 0:
@@ -328,6 +343,9 @@ def run_training_loop(
                 "trigger_threshold": float(config.trigger_threshold),
                 "trigger_weights": config.trigger_weights,
                 "confirm_window": int(config.confirm_window),
+                "confirm_cooldown": int(confirm_cooldown),
+                "confirm_cooldown_active": int(bool(cooldown_active)),
+                "confirm_cooldown_remaining": int(cooldown_remaining),
                 "severity_scheduler_scale": float(config.severity_scheduler_scale),
                 "metric_accuracy": acc_value,
                 "metric_kappa": kappa_value,
@@ -392,6 +410,7 @@ def run_training_loop(
                 "trigger_threshold": float(config.trigger_threshold),
                 "trigger_weights": config.trigger_weights,
                 "confirm_window": int(config.confirm_window),
+                "confirm_cooldown": int(confirm_cooldown),
                 "severity_scheduler_scale": float(config.severity_scheduler_scale),
                 "use_severity_v2": int(bool(config.use_severity_v2)),
                 "severity_gate": str(config.severity_gate),

@@ -241,6 +241,8 @@ class DriftMonitor:
     trigger_weights: Optional[Dict[str, float]] = None
     trigger_threshold: float = 0.5
     confirm_window: int = 200
+    # two_stage 的“确认冷却”，用于抑制过密 confirm（单位：sample_idx；若未提供 sample_idx 则退化为 step）
+    confirm_cooldown: int = 0
     history: List[int] = field(default_factory=list)
     last_drift_step: int = -1
 
@@ -259,8 +261,26 @@ class DriftMonitor:
         self.confirmed_history: List[int] = []
         self.candidate_count_total: int = 0
         self.confirmed_count_total: int = 0
+        self._last_confirmed_pos: Optional[int] = None
+        self.last_cooldown_active: bool = False
+        self.last_cooldown_remaining: int = 0
 
-    def update(self, values: Dict[str, float], step: int) -> Tuple[bool, float]:
+    def _resolve_confirm_cooldown(self) -> int:
+        cooldown = int(getattr(self, "confirm_cooldown", 0) or 0)
+        if cooldown > 0:
+            return cooldown
+        tw = getattr(self, "trigger_weights", None)
+        if isinstance(tw, dict):
+            for key in ("__confirm_cooldown", "confirm_cooldown", "cooldown"):
+                if key not in tw:
+                    continue
+                try:
+                    return max(0, int(float(tw[key])))  # type: ignore[arg-type]
+                except Exception:
+                    continue
+        return 0
+
+    def update(self, values: Dict[str, float], step: int, sample_idx: Optional[int] = None) -> Tuple[bool, float]:
         """输入最新批次统计，返回漂移标志与严重度。"""
         trigger_mode = (self.trigger_mode or "or").lower()
         if trigger_mode not in {"or", "k_of_n", "weighted", "two_stage"}:
@@ -295,42 +315,59 @@ class DriftMonitor:
         candidate_flag = vote_count >= 1
         drift_flag = False
         confirm_delay = -1
+        cooldown = self._resolve_confirm_cooldown()
+        current_pos = int(sample_idx) if sample_idx is not None else int(step)
+        cooldown_active = False
+        cooldown_remaining = 0
+        if cooldown > 0 and self._last_confirmed_pos is not None:
+            gap = int(current_pos - int(self._last_confirmed_pos))
+            if gap < int(cooldown):
+                cooldown_active = True
+                cooldown_remaining = int(cooldown - gap)
 
-        if trigger_mode == "or":
-            drift_flag = candidate_flag
-        elif trigger_mode == "k_of_n":
-            drift_flag = vote_count >= k
-        elif trigger_mode == "weighted":
-            drift_flag = vote_score >= threshold
-        else:  # two_stage: candidate OR -> confirm weighted within window
-            # clear expired pending
-            if self._pending_confirm_deadline_step is not None and step > self._pending_confirm_deadline_step:
-                self._pending_candidate_step = None
-                self._pending_confirm_deadline_step = None
-            # register candidate
-            if candidate_flag and self._pending_candidate_step is None:
-                self._pending_candidate_step = step
-                self._pending_confirm_deadline_step = step + confirm_window
-                self.candidate_history.append(step)
-                self.candidate_count_total += 1
-            # confirm
-            if self._pending_candidate_step is not None and vote_score >= threshold:
-                drift_flag = True
-                confirm_delay = max(0, step - self._pending_candidate_step)
-                self._pending_candidate_step = None
-                self._pending_confirm_deadline_step = None
-                self.confirmed_history.append(step)
-                self.confirmed_count_total += 1
+        if cooldown_active:
+            # cooldown 期间不允许新 confirm，且清空 pending，避免“过期后补确认”造成不必要的晚检。
+            self._pending_candidate_step = None
+            self._pending_confirm_deadline_step = None
+        else:
+            if trigger_mode == "or":
+                drift_flag = candidate_flag
+            elif trigger_mode == "k_of_n":
+                drift_flag = vote_count >= k
+            elif trigger_mode == "weighted":
+                drift_flag = vote_score >= threshold
+            else:  # two_stage: candidate OR -> confirm weighted within window
+                # clear expired pending
+                if self._pending_confirm_deadline_step is not None and step > self._pending_confirm_deadline_step:
+                    self._pending_candidate_step = None
+                    self._pending_confirm_deadline_step = None
+                # register candidate
+                if candidate_flag and self._pending_candidate_step is None:
+                    self._pending_candidate_step = step
+                    self._pending_confirm_deadline_step = step + confirm_window
+                    self.candidate_history.append(step)
+                    self.candidate_count_total += 1
+                # confirm
+                if self._pending_candidate_step is not None and vote_score >= threshold:
+                    drift_flag = True
+                    confirm_delay = max(0, step - self._pending_candidate_step)
+                    self._pending_candidate_step = None
+                    self._pending_confirm_deadline_step = None
+                    self.confirmed_history.append(step)
+                    self.confirmed_count_total += 1
 
         self.last_vote_count = vote_count
         self.last_vote_score = float(vote_score)
         self.last_fused_severity = float(fused_severity)
         self.last_candidate_flag = bool(candidate_flag)
         self.last_confirm_delay = int(confirm_delay)
+        self.last_cooldown_active = bool(cooldown_active)
+        self.last_cooldown_remaining = int(cooldown_remaining)
 
         if drift_flag:
             self.history.append(step)
             self.last_drift_step = step
+            self._last_confirmed_pos = int(current_pos)
         return drift_flag, monitor_severity
 
 
