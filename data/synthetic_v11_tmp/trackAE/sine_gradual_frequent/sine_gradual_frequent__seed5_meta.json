@@ -1,0 +1,91 @@
+{
+  "dataset_type": "sine",
+  "dataset_name": "sine_gradual_frequent",
+  "seed": 5,
+  "n_samples": 50000,
+  "n_features": 2,
+  "feature_names": [
+    "f0",
+    "f1"
+  ],
+  "label_name": "y",
+  "drift_type": "gradual",
+  "drifts": [
+    {
+      "id": 0,
+      "start": 10000,
+      "end": 12000,
+      "mid": 11000.0,
+      "type": "gradual"
+    },
+    {
+      "id": 1,
+      "start": 20000,
+      "end": 22000,
+      "mid": 21000.0,
+      "type": "gradual"
+    },
+    {
+      "id": 2,
+      "start": 30000,
+      "end": 32000,
+      "mid": 31000.0,
+      "type": "gradual"
+    },
+    {
+      "id": 3,
+      "start": 40000,
+      "end": 42000,
+      "mid": 41000.0,
+      "type": "gradual"
+    }
+  ],
+  "concept_segments": [
+    {
+      "concept_id": 0,
+      "start": 0,
+      "end": 9999
+    },
+    {
+      "concept_id": 1,
+      "start": 10000,
+      "end": 19999
+    },
+    {
+      "concept_id": 2,
+      "start": 20000,
+      "end": 29999
+    },
+    {
+      "concept_id": 3,
+      "start": 30000,
+      "end": 39999
+    },
+    {
+      "concept_id": 4,
+      "start": 40000,
+      "end": 49999
+    }
+  ],
+  "generator": {
+    "library": "river",
+    "class": "Sine",
+    "params": {
+      "classification_functions": [
+        0,
+        1,
+        2,
+        3,
+        0
+      ],
+      "segment_length": 10000,
+      "seed": 5
+    }
+  },
+  "classes": [
+    0,
+    1
+  ],
+  "n_classes": 2,
+  "transition_length": 2000
+}

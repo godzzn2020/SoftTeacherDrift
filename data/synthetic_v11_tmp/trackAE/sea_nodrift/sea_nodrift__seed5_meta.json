@@ -1,0 +1,39 @@
+{
+  "dataset_type": "sea",
+  "dataset_name": "sea_nodrift",
+  "seed": 5,
+  "n_samples": 50000,
+  "n_features": 3,
+  "feature_names": [
+    "f0",
+    "f1",
+    "f2"
+  ],
+  "label_name": "y",
+  "drift_type": "abrupt",
+  "drifts": [],
+  "concept_segments": [
+    {
+      "concept_id": 0,
+      "start": 0,
+      "end": 49999
+    }
+  ],
+  "generator": {
+    "library": "river",
+    "class": "SEA",
+    "params": {
+      "concept_ids": [
+        0
+      ],
+      "concept_length": 50000,
+      "noise": 0.0
+    }
+  },
+  "classes": [
+    0,
+    1
+  ],
+  "n_classes": 2,
+  "transition_length": 2000
+}
