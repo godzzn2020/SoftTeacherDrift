@@ -1,0 +1,141 @@
+{
+  "dataset_type": "sine",
+  "dataset_name": "sine_abrupt4",
+  "seed": 1,
+  "n_samples": 50000,
+  "n_features": 2,
+  "feature_names": [
+    "f0",
+    "f1"
+  ],
+  "label_name": "y",
+  "drift_type": "gradual",
+  "drifts": [
+    {
+      "id": 0,
+      "start": 5000,
+      "end": 5000,
+      "type": "gradual"
+    },
+    {
+      "id": 1,
+      "start": 10000,
+      "end": 10000,
+      "type": "gradual"
+    },
+    {
+      "id": 2,
+      "start": 15000,
+      "end": 15000,
+      "type": "gradual"
+    },
+    {
+      "id": 3,
+      "start": 20000,
+      "end": 20000,
+      "type": "gradual"
+    },
+    {
+      "id": 4,
+      "start": 25000,
+      "end": 25000,
+      "type": "gradual"
+    },
+    {
+      "id": 5,
+      "start": 30000,
+      "end": 30000,
+      "type": "gradual"
+    },
+    {
+      "id": 6,
+      "start": 35000,
+      "end": 35000,
+      "type": "gradual"
+    },
+    {
+      "id": 7,
+      "start": 40000,
+      "end": 40000,
+      "type": "gradual"
+    },
+    {
+      "id": 8,
+      "start": 45000,
+      "end": 45000,
+      "type": "gradual"
+    }
+  ],
+  "concept_segments": [
+    {
+      "concept_id": 0,
+      "start": 0,
+      "end": 4999
+    },
+    {
+      "concept_id": 1,
+      "start": 5000,
+      "end": 9999
+    },
+    {
+      "concept_id": 2,
+      "start": 10000,
+      "end": 14999
+    },
+    {
+      "concept_id": 3,
+      "start": 15000,
+      "end": 19999
+    },
+    {
+      "concept_id": 4,
+      "start": 20000,
+      "end": 24999
+    },
+    {
+      "concept_id": 5,
+      "start": 25000,
+      "end": 29999
+    },
+    {
+      "concept_id": 6,
+      "start": 30000,
+      "end": 34999
+    },
+    {
+      "concept_id": 7,
+      "start": 35000,
+      "end": 39999
+    },
+    {
+      "concept_id": 8,
+      "start": 40000,
+      "end": 44999
+    },
+    {
+      "concept_id": 9,
+      "start": 45000,
+      "end": 49999
+    }
+  ],
+  "generator": {
+    "library": "river",
+    "class": "Sine",
+    "params": {
+      "classification_functions": [
+        0,
+        1,
+        2,
+        3,
+        0
+      ],
+      "segment_length": 5000,
+      "seed": 1
+    }
+  },
+  "classes": [
+    0,
+    1
+  ],
+  "n_classes": 2
+}
