@@ -42,6 +42,12 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Track AL: permutation-test confirm sweep")
     p.add_argument("--device", type=str, default="cuda")
     p.add_argument("--logs_root", type=str, default="logs")
+    p.add_argument(
+        "--log_root_suffix",
+        type=str,
+        default="",
+        help="日志根目录后缀（用于输出隔离；例如 v14fix1 -> logs_v14fix1）",
+    )
     p.add_argument("--results_root", type=str, default="results")
     p.add_argument("--out_csv", type=str, default="scripts/TRACKAL_PERM_CONFIRM_SWEEP.csv")
 
@@ -288,6 +294,12 @@ def main() -> int:
     out_csv = Path(args.out_csv)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
 
+    # 输出隔离（强制推荐）：避免复用旧 logs 导致 nodrift/drift 混淆
+    logs_root = Path(str(args.logs_root))
+    suffix = str(getattr(args, "log_root_suffix", "") or "").strip()
+    if suffix:
+        logs_root = Path(f"{logs_root}_{suffix}")
+
     seeds_quick = parse_int_list(str(args.seeds_quick))
     seeds_full = parse_int_list(str(args.seeds_full))
     weights_base = parse_weights(str(args.weights))
@@ -297,6 +309,22 @@ def main() -> int:
     tol = int(args.tol)
     min_sep = int(args.min_separation)
     gt_starts = default_gt_starts(n_samples)
+
+    # 关键修复配套：为 nodrift/gradual 的 dataset 别名注册可运行的 stream 配置
+    # - 仅影响本脚本进程内的 streams 配置，不改动任何代码文件
+    # - 目的：允许 dataset_name=sea_nodrift/sine_nodrift 写入 summary 并按 ds_alias 分目录落盘
+    from data import streams as _streams
+
+    sea_base = dict(_streams.SEA_CONFIGS.get("sea_abrupt4") or {"concept_ids": [0, 1, 2, 3, 0], "concept_length": 10000})
+    _streams.SEA_CONFIGS.setdefault("sea_nodrift", {"concept_ids": [0], "concept_length": int(sea_base.get("concept_length") or 10000)})
+    _streams.SEA_CONFIGS.setdefault("sea_gradual_frequent", sea_base)
+
+    sine_base = dict(_streams.SINE_DEFAULT.get("sine_abrupt4") or {"classification_functions": [0, 1, 2, 3, 0], "segment_length": 10000, "balance_classes": False, "has_noise": False})
+    _streams.SINE_DEFAULT.setdefault(
+        "sine_nodrift",
+        {**sine_base, "classification_functions": [0]},
+    )
+    _streams.SINE_DEFAULT.setdefault("sine_gradual_frequent", sine_base)
 
     cfg_map = build_cfg_map(1)
     base_cfg_sea = cfg_map["sea_abrupt4"]
@@ -404,7 +432,7 @@ def main() -> int:
             exp_run = create_experiment_run(
                 experiment_name="trackAL_perm_confirm_sweep",
                 results_root=Path(args.results_root),
-                logs_root=Path(args.logs_root),
+                logs_root=logs_root,
                 run_name=str(g["group"]),
             )
             by_ds: Dict[str, List[Dict[str, Any]]] = {}
@@ -415,7 +443,7 @@ def main() -> int:
                 for seed in seeds:
                     log_path = ensure_log(
                         exp_run,
-                        dataset_name=base_name,
+                        dataset_name=ds_alias,
                         seed=seed,
                         base_cfg=base_cfg,
                         monitor_preset=str(args.monitor_preset),
@@ -431,9 +459,12 @@ def main() -> int:
                     confirmed_raw = [int(x) for x in (summ.get("confirmed_sample_idxs") or [])]
                     confirmed = merge_events(confirmed_raw, min_sep)
 
+                    # RUN_INDEX 约束：避免同一 run_id 跨 dataset 复用（审计脚本将 fail-fast）
+                    run_id = f"{exp_run.run_id}__{ds_alias}"
+
                     rec: Dict[str, Any] = {
                         "seed": int(seed),
-                        "run_id": str(exp_run.run_id),
+                        "run_id": str(run_id),
                         "log_path": str(log_path),
                         "horizon": int(horizon),
                         "acc_final": _safe_float(summ.get("acc_final")),
@@ -457,7 +488,7 @@ def main() -> int:
                         rec["confirm_rate_per_10k"] = None
 
                     by_ds[ds_alias].append(rec)
-                    run_index[ds_alias]["runs"].append({"seed": int(seed), "run_id": str(exp_run.run_id), "log_path": str(log_path)})
+                    run_index[ds_alias]["runs"].append({"seed": int(seed), "run_id": str(run_id), "log_path": str(log_path)})
 
             # aggregate rows per dataset
             for ds_alias, _base_name, _base_cfg, _stream_kwargs, ds_kind in datasets:
