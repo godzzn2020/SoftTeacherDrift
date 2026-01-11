@@ -1,0 +1,9 @@
+track,dataset,group,phase,confirm_rule,perm_stat,delta_k,perm_alpha,perm_pre_n,perm_post_n,perm_n_perm,n_runs,candidate_count_mean,candidate_count_std,confirmed_count_mean,confirmed_count_std,confirmed_over_candidate_mean,perm_pvalue_p50_mean,perm_pvalue_p90_mean,perm_pvalue_p99_mean,perm_pvalue_le_alpha_ratio_mean
+AM,sea_nodrift,A_weighted_n5,quick,weighted,N/A,N/A,N/A,N/A,N/A,N/A,5,148.4,2.3021728866442674,148.4,2.3021728866442674,1.0,,,,
+AM,sine_nodrift,A_weighted_n5,quick,weighted,N/A,N/A,N/A,N/A,N/A,N/A,5,148.2,1.3038404810405297,148.2,1.3038404810405297,1.0,,,,
+AM,sea_abrupt4,A_weighted_n5,quick,weighted,N/A,N/A,N/A,N/A,N/A,N/A,5,148.4,2.3021728866442674,148.4,2.3021728866442674,1.0,,,,
+AM,sine_abrupt4,A_weighted_n5,quick,weighted,N/A,N/A,N/A,N/A,N/A,N/A,5,148.2,1.3038404810405297,148.2,1.3038404810405297,1.0,,,,
+AM,sea_nodrift,P_perm_delta_fused_score_a0.05_pre500_post50_dk50_n5,quick,perm_test,delta_fused_score,50,0.05,500,50,200,5,136.4,1.816590212458495,121.8,2.588435821108957,0.8929669856577686,0.21840796019900496,1.0,1.0,0.4682838750273336
+AM,sine_nodrift,P_perm_delta_fused_score_a0.05_pre500_post50_dk50_n5,quick,perm_test,delta_fused_score,50,0.05,500,50,200,5,131.2,2.4899799195977463,117.2,3.8987177379235853,0.893178097323313,0.24776119402985075,1.0,1.0,0.46161034169136
+AM,sea_abrupt4,P_perm_delta_fused_score_a0.05_pre500_post50_dk50_n5,quick,perm_test,delta_fused_score,50,0.05,500,50,200,5,136.4,1.816590212458495,121.8,2.588435821108957,0.8929669856577686,0.21840796019900496,1.0,1.0,0.4682838750273336
+AM,sine_abrupt4,P_perm_delta_fused_score_a0.05_pre500_post50_dk50_n5,quick,perm_test,delta_fused_score,50,0.05,500,50,200,5,131.2,2.4899799195977463,117.2,3.8987177379235853,0.893178097323313,0.24776119402985075,1.0,1.0,0.46161034169136
