@@ -252,7 +252,7 @@ class DriftMonitor:
     perm_post_n: int = 50
     perm_n_perm: int = 200
     perm_alpha: float = 0.01
-    perm_stat: str = "fused_score"  # fused_score / delta_fused_score
+    perm_stat: str = "fused_score"  # fused_score / delta_fused_score / vote_score
     perm_min_effect: float = 0.0
     perm_rng_seed: int = 0
     perm_delta_k: int = 50
@@ -587,7 +587,7 @@ class DriftMonitor:
         alpha = float(alpha)
         if not (0.0 < alpha <= 1.0):
             alpha = 0.01
-        if stat not in {"fused_score", "delta_fused_score"}:
+        if stat not in {"fused_score", "delta_fused_score", "vote_score"}:
             stat = "fused_score"
         min_eff = float(min_eff)
         delta_k = max(1, int(delta_k))
@@ -759,12 +759,16 @@ class DriftMonitor:
                 perm_enabled = pending_rule_name == "perm_test"
                 perm_cfg = self._resolve_perm_test_cfg() if perm_enabled else None
                 stat_t = float(fused_score_t)
-                if perm_enabled and perm_cfg is not None and str(perm_cfg.get("stat")).lower() == "delta_fused_score":
-                    delta_k = int(perm_cfg.get("delta_k") or 50)
-                    prev_fused = list(self._perm_fused_score_hist)
-                    tail = prev_fused[-max(1, min(delta_k, len(prev_fused))):] if prev_fused else []
-                    baseline = float(np.median(np.asarray(tail, dtype=np.float64))) if tail else 0.0
-                    stat_t = float(fused_score_t - baseline)
+                if perm_enabled and perm_cfg is not None:
+                    perm_stat = str(perm_cfg.get("stat") or "fused_score").lower()
+                    if perm_stat == "vote_score":
+                        stat_t = float(vote_score)
+                    elif perm_stat == "delta_fused_score":
+                        delta_k = int(perm_cfg.get("delta_k") or 50)
+                        prev_fused = list(self._perm_fused_score_hist)
+                        tail = prev_fused[-max(1, min(delta_k, len(prev_fused))):] if prev_fused else []
+                        baseline = float(np.median(np.asarray(tail, dtype=np.float64))) if tail else 0.0
+                        stat_t = float(fused_score_t - baseline)
 
                 confirm_cfg = self._resolve_confirm_rule_cfg()
                 confirm_rule = int(confirm_cfg["rule"])

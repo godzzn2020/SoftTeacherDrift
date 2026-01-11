@@ -1,0 +1,2 @@
+/home/ylh/anaconda3/envs/ZZNSTD/bin/python experiments/trackAL_perm_confirm_sweep.py --device cuda --logs_root logs --log_root_suffix v15vote_s0 --results_root results --out_csv scripts/TRACKAL_PERM_CONFIRM_SWEEP_V15_shard0.csv --num_shards 2 --shard_idx 0
+/home/ylh/anaconda3/envs/ZZNSTD/bin/python experiments/trackAL_perm_confirm_sweep.py --device cuda --logs_root logs --log_root_suffix v15vote_s1 --results_root results --out_csv scripts/TRACKAL_PERM_CONFIRM_SWEEP_V15_shard1.csv --num_shards 2 --shard_idx 1

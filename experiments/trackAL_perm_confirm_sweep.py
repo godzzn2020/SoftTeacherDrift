@@ -77,9 +77,11 @@ def parse_args() -> argparse.Namespace:
     # sweep grid
     p.add_argument("--perm_alphas", type=str, default="0.05,0.02,0.01,0.005")
     p.add_argument("--perm_pre_ns", type=str, default="200,500")
-    p.add_argument("--perm_post_ns", type=str, default="30,50")
+    p.add_argument("--perm_post_ns", type=str, default="10,20,30,50")
     p.add_argument("--perm_n_perm", type=int, default=200)
     p.add_argument("--delta_ks", type=str, default="25,50")
+    p.add_argument("--num_shards", type=int, default=1, help="将 groups 切成 N 片（用于并行）；默认 1=不切片")
+    p.add_argument("--shard_idx", type=int, default=0, help="当前分片编号 [0, num_shards)")
     return p.parse_args()
 
 
@@ -368,7 +370,7 @@ def main() -> int:
     delta_ks = parse_int_list(str(args.delta_ks))
     perm_n_perm = int(args.perm_n_perm)
 
-    for stat in ("fused_score", "delta_fused_score"):
+    for stat in ("fused_score", "delta_fused_score", "vote_score"):
         for alpha in perm_alphas:
             for pre_n in perm_pre_ns:
                 for post_n in perm_post_ns:
@@ -422,6 +424,20 @@ def main() -> int:
                                 "trigger_weights": tw,
                             }
                         )
+
+    num_shards = int(args.num_shards)
+    shard_idx = int(args.shard_idx)
+    if num_shards < 1:
+        raise ValueError("--num_shards 必须 >= 1")
+    if shard_idx < 0 or shard_idx >= num_shards:
+        raise ValueError(f"--shard_idx 越界：{shard_idx}（期望 0..{num_shards - 1}）")
+    if bool(args.run_full) and num_shards > 1:
+        raise ValueError("--run_full 与分片并行不兼容（topK 选择需要全量 groups）；请先分片跑 quick，merge 后再单独跑 full。")
+
+    groups = sorted(groups, key=lambda g: str(g.get("group") or ""))
+    if num_shards > 1:
+        groups = [g for i, g in enumerate(groups) if (i % num_shards) == shard_idx]
+        print(f"[shard] num_shards={num_shards} shard_idx={shard_idx} groups={len(groups)}")
 
     # run quick
     rows_quick: List[Dict[str, Any]] = []
