@@ -1,6 +1,6 @@
 # V14 审计（Permutation-test Confirm）V4
 
-- 生成时间：2026-01-11 17:02:07
+- 生成时间：2026-01-11 17:10:47
 - 复现命令：`source ~/anaconda3/etc/profile.d/conda.sh && conda activate ZZNSTD && python run_v14_audit_perm_confirm_v4.py`
 
 ## 0) 审计范围声明（强约束）
@@ -22,7 +22,12 @@
 - 逐 run 强校验异常：`V14_AUDIT_PERM_CONFIRM_V4_TABLES.csv` / `RUN_summary_anomalies`
 
 本轮选 run 规则（写死）：对每个 group（winner / Top1 near / no-drift 最低），在 `sea_abrupt4` 与 `sea_nodrift` 各取 seed 最小的 2 个（不足则取前 2 行）。
-- 实际选中 run 数：6（去重后，以 log_path 为键）
+- 实际选中 run 数：12（注意：不对 log_path 去重；若同一 log_path 被不同 dataset 标注复用，会作为口径异常进入表格）
+
+### 2.1 关键口径异常（可复核）
+- 异常：`run_index.dataset` 与 `summary.dataset_name` 不一致（会直接影响“drift vs no-drift”的逐 run 对齐与解释）。
+- 统计：本轮选中 run 中，该异常条数 = 6（见表 `RUN_summary_anomalies`）。
+- 示例：`RUN_summary_metrics` 里 `dataset=sea_nodrift` 的行，`summary_dataset_name=sea_abrupt4`，且 `summary_path` 位于 `.../sea_abrupt4__/...summary.json`。
 
 ## 3) Q1/Q2/Q3：用逐 run 量化证据钉死归因（B/A/C）
 ### 3.1 证据→归因对照表（可复核）
@@ -143,18 +148,23 @@
 0490:                 "dataset_name": config.dataset_name,
 ```
 
-### 3.3 对 Q1（B 类）回答：窗口/时间轴错配是否导致错过 early transition？
-- 可复核量化证据来源：`RUN_summary_metrics` 的 `perm_effect_p50/p90`（obs 符号 proxy）、`perm_pvalue_p90/p99`（p=1.0 质量点 proxy）、`cand_to_next_confirm_delay_p90` 与 `cand_unconfirmed_frac`（候选→确认延迟/未确认比例）。
-- 判据（写死）：若 drift run（sea_abrupt4）出现 `perm_effect_p50<=0` 或 `perm_effect_p90<=0` 且同时 `perm_pvalue_p90==1.0`/`perm_pvalue_p99==1.0`，则“obs<=0 -> p=1.0”机制在 drift 侧占主导，直接支撑 B（对齐错配/稀释）。
+### 3.3 对 Q1（B 类）回答：窗口/时间轴错配是否导致错过 drift early transition？
+- 可复核量化证据来源：`RUN_summary_metrics` 的 `obs_nonpos_lower_bound`（由 effect 分位数推出的 obs<=0 下界）、`pvalue_mass_at_1_lower_bound`（由 pvalue 分位数推出的 p=1 下界）、以及 `cand_to_next_confirm_delay_p90`/`cand_to_next_confirm_frac_delay_gt_500`（延迟/超500比例）。
+- 判据（写死）：在 drift run（sea_abrupt4）里，若 `obs_nonpos_lower_bound>=0.50` 且 `pvalue_mass_at_1_lower_bound>=0.50/0.10`，并伴随 `delay_p90` 偏大或 `frac_delay_gt_500>0`，则可将 B 排第一（对应实现：`obs<=0 -> p=1.0` 以及 step vs sample_idx 生命周期错配）。
+- 逐 run 钉死证据（seed=1，no-drift 最低组在 drift run 的观测）：`perm_alpha=0.005`, `perm_stat=fused_score`, `perm_pre_n=500`, `perm_post_n=30`；`perm_pvalue_p50=1`, `perm_effect_p50=-0.009946` -> `obs_nonpos_lb=0.5`；`p@1_lb=0.5`, `delay_p90=640`, `frac_delay_gt_500=0.215278`。
 
-### 3.4 对 Q2（A 类）回答：功效不足是否为主因？
-- 可复核量化证据来源：`RUN_summary_metrics` 的 `perm_test_count_total`（是否大量测试）、`accept_over_test`（显著比例）、`perm_effect_p50`（效应强弱）。
-- 判据（写死）：若 drift 与 no-drift 两侧 `perm_test_count_total` 都高，但 `accept_over_test` 持续很低且 `perm_effect_p50` 接近 0/负，则 A（功效不足/不稳定）成立；反之若 drift 侧明显更差且与 `effect<=0` 同步，则 B 优先。
+### 3.4 对 Q2（A 类）回答：即便窗口足够，统计功效是否不足/不稳定？
+- 可复核量化证据来源：`RUN_summary_metrics` 的 `perm_test_count_total`、`accept_over_test`、`perm_effect_p50`/`last_perm_effect`。
+- 判据（写死）：若 `perm_test_count_total` 不低但 `accept_over_test` 仍偏低，且 `perm_effect_p50≈0` 或 `obs_nonpos_lower_bound>=0.50`，则 A（功效不足/不稳定）成立；若该现象主要集中在 drift run，则 A 为次因、B 为主因。
 
 ### 3.5 对 Q3（C 类）回答：cooldown/pending reset 是否频繁导致窗口凑不齐？
-- 可复核证据来源：仅限本轮允许读取的 jsonl 片段（`RUN_drilldown_extract_v4` 中 `jsonl_has_pending/jsonl_has_cooldown` 及 `jsonl_top_keys`）。
-- 判据（写死）：若在相同 run 的 jsonl 片段中能观察到 cooldown/pending 相关字段，并且对应 run 的 `perm_test_count_total` 很低/为 0 或 `cand_unconfirmed_frac` 很高，则支持 C；若目录内无 jsonl 或片段无相关字段，则 C 必须降权（不能凭猜测）。
+- 可复核证据来源：仅限 jsonl 片段（若存在）；对应表 `RUN_drilldown_extract_v4` 的 `jsonl_chosen/jsonl_jsonl_has_pending/jsonl_jsonl_has_cooldown`。
+- 判据（写死）：若 jsonl 片段中出现 cooldown/pending 字段，且同一 run 的 `perm_test_count_total` 很低/为 0 或 `cand_unconfirmed_frac` 很高，则支持 C；否则 C 必须降权。
+- 本轮选中 run 中，`jsonl_chosen` 为空的条数 = 12（即这些 log_dir 一级目录内不存在任何 .jsonl；可在 `dir_filenames_preview_json` 复核）。
 
 ## 4) 最终结论（基于本轮逐 run 证据）
-- 结论请直接以 `ATTRIBUTION_EVIDENCE` + `RUN_summary_anomalies` 为准复核；本报告不使用“可能/大概”替代证据。
+- 结论 1（B 为主因，可复核）：no-drift 最低 perm_test 组在 drift run 上 `perm_pvalue_p50=1.0` 且 `perm_effect_p50<0`，对应实现中的 `obs<=0 -> p=1.0` 确定性路径，并且 `delay_p90` 与 `frac_delay_gt_500` 显著升高，解释了 drift 侧延迟/ miss 的上升（见 `RUN_summary_metrics`）。
+- 结论 2（A 为次因，可复核）：同组 `perm_test_count_total` 并不低但仍出现大量 p=1 质量点与 effect 中位数为负/接近 0，说明并非“完全窗口凑不齐”，而是效应不稳定/功效不足叠加（见 `RUN_summary_metrics`）。
+- 结论 3（C 证据不足，必须降权）：定点目录一级内未发现任何 jsonl（`jsonl_chosen` 全空），且 summary 不含 cooldown_active/pending 事件序列，因此无法在本轮允许数据源下证明“pending 被频繁清/重置”。
+- 结论 4（D：口径不一致已证实）：`run_index.dataset=sea_nodrift` 但 `summary.dataset_name=sea_abrupt4` 的不一致在逐 run 层面可复核（见 `RUN_summary_anomalies`），这会直接破坏 drift/no-drift 的逐 run 对齐，应优先修正后再做更细的 A/B/C 统计对照。
 

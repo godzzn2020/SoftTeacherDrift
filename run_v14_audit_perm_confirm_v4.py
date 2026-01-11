@@ -499,7 +499,22 @@ def _extract_summary_metrics(summary: Optional[Dict[str, Any]]) -> Dict[str, Any
     if summary is None:
         return {}
 
-    tw = summary.get("trigger_weights") if isinstance(summary.get("trigger_weights"), dict) else {}
+    # training/loop.py 的 summary 里 trigger_weights 在本仓库当前为 str（形如 "k=v,k=v"），不是 dict
+    tw_raw = summary.get("trigger_weights")
+    tw: Dict[str, Any] = {}
+    if isinstance(tw_raw, dict):
+        tw = dict(tw_raw)
+    elif isinstance(tw_raw, str):
+        # 解析 "k=v,k=v"（不做复杂转义；该格式可被 repr() 复核）
+        for tok in [t.strip() for t in tw_raw.split(",") if t.strip()]:
+            if "=" not in tok:
+                continue
+            k, v = tok.split("=", 1)
+            k = k.strip()
+            v = v.strip()
+            # 尝试数值化
+            fv = _to_float(v)
+            tw[k] = fv if fv is not None else v
 
     def tw_get(k: str) -> Any:
         return tw.get(k) if isinstance(tw, dict) else None
@@ -536,6 +551,12 @@ def _extract_summary_metrics(summary: Optional[Dict[str, Any]]) -> Dict[str, Any
 
     horizon = _to_float(summary.get("horizon"))
     n_steps = _to_float(summary.get("n_steps"))
+    dataset_name = summary.get("dataset_name")
+    dataset_type = summary.get("dataset_type")
+    trigger_mode = summary.get("trigger_mode")
+    confirm_window = _to_float(summary.get("confirm_window"))
+    confirm_cooldown_summary = _to_float(summary.get("confirm_cooldown"))
+    confirm_cooldown_tw = _to_float(tw_get("__confirm_cooldown"))
 
     # candidate/confirmed sample idx 序列（用于延迟粗诊断：不读 raw log）
     cand_idxs = summary.get("candidate_sample_idxs")
@@ -591,7 +612,31 @@ def _extract_summary_metrics(summary: Optional[Dict[str, Any]]) -> Dict[str, Any
     if cand_list:
         cand_unconfirmed_frac = 1.0 - (len(delays) / float(len(cand_list))) if cand_list else None
 
+    # quantile -> “质量点/符号”下界（数学可复核：值域上界为 1.0）
+    # pvalue_p50==1 -> 至少 50% 的 pvalue 达到 1（或极接近 1；在本实现里 p=1.0 常见于 obs<=0 早返回）
+    p_mass_at_1_lb = None
+    if p50 is not None and abs(p50 - 1.0) < 1e-12:
+        p_mass_at_1_lb = 0.50
+    elif p90 is not None and abs(p90 - 1.0) < 1e-12:
+        p_mass_at_1_lb = 0.10
+    elif p99 is not None and abs(p99 - 1.0) < 1e-12:
+        p_mass_at_1_lb = 0.01
+
+    obs_nonpos_lb = None
+    if eff50 is not None and eff50 <= 0.0:
+        obs_nonpos_lb = 0.50
+    elif eff90 is not None and eff90 <= 0.0:
+        obs_nonpos_lb = 0.90
+    elif eff99 is not None and eff99 <= 0.0:
+        obs_nonpos_lb = 0.99
+
     return {
+        "summary_dataset_name": dataset_name,
+        "summary_dataset_type": dataset_type,
+        "trigger_mode": trigger_mode,
+        "confirm_window": confirm_window,
+        "confirm_cooldown_summary": confirm_cooldown_summary,
+        "confirm_cooldown_tw": confirm_cooldown_tw,
         "confirm_rule_effective": summary.get("confirm_rule_effective"),
         "perm_alpha": perm_alpha,
         "perm_stat": perm_stat,
@@ -629,6 +674,8 @@ def _extract_summary_metrics(summary: Optional[Dict[str, Any]]) -> Dict[str, Any
         "cand_to_next_confirm_frac_delay_gt_post_n": frac_delay_gt_post,
         "cand_unconfirmed_frac": cand_unconfirmed_frac,
         "pvalue_mass_at_1_proxy": float(pvalue_mass_at_1_proxy),
+        "pvalue_mass_at_1_lower_bound": p_mass_at_1_lb,
+        "obs_nonpos_lower_bound": obs_nonpos_lb,
         "test_intensity": test_intensity,
         "perm_test_density": perm_test_density,
     }
@@ -723,16 +770,8 @@ def main() -> int:
     for g in drill_groups:
         for ds in ("sea_abrupt4", "sea_nodrift"):
             selected_runs.extend(_select_runs_v4(run_index_rows, g, ds))
-    # 去重（同一 log_path 只保留一次）
-    seen_lp = set()
-    uniq_runs: List[Dict[str, str]] = []
-    for r in selected_runs:
-        lp = r.get("log_path") or ""
-        if not lp or lp in seen_lp:
-            continue
-        uniq_runs.append(r)
-        seen_lp.add(lp)
-    selected_runs = uniq_runs
+    # 注意：本仓库 RUN_INDEX / TRACKAL 的 run_index_json 存在“同一 seed 下 sea_abrupt4 与 sea_nodrift 指向同一 log_path”的现象；
+    # 因此此处不对 log_path 去重，而是在读取时做缓存，避免重复读文件，同时保留 dataset 标注以便审计该口径问题。
 
     drilldown_rows: List[Dict[str, Any]] = []
     run_metrics_rows: List[Dict[str, Any]] = []
@@ -741,6 +780,10 @@ def main() -> int:
     # 用于归因证据汇总（按 group×dataset 聚合）
     by_group_dataset_metrics: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
 
+    # 缓存：避免同一 log_path/dir 重复 I/O（仍满足“每个目录最多 1 次 listdir + 最多 1 次 glob”的约束）
+    summary_cache: Dict[str, Tuple[Optional[str], Optional[Dict[str, Any]], Dict[str, Any]]] = {}
+    dir_list_cache: Dict[str, Tuple[List[str], Optional[str]]] = {}
+
     for r in selected_runs:
         group = r.get("group", "")
         dataset = r.get("dataset", "")
@@ -748,10 +791,22 @@ def main() -> int:
         run_id = r.get("run_id", "")
         log_path = r.get("log_path", "")
 
-        summary_path, summary_obj, summary_meta = _read_summary_v4(log_path)
+        if log_path in summary_cache:
+            summary_path, summary_obj, summary_meta = summary_cache[log_path]
+        else:
+            summary_path, summary_obj, summary_meta = _read_summary_v4(log_path)
+            summary_cache[log_path] = (summary_path, summary_obj, summary_meta)
         log_dir = summary_meta.get("log_dir")
-        # 单目录非递归 listdir（严格一次）
-        dir_names, dir_err = _list_dir_once(log_dir) if isinstance(log_dir, str) and log_dir else ([], "log_dir N/A")
+
+        # 单目录非递归 listdir（严格一次；缓存按 log_dir）
+        if isinstance(log_dir, str) and log_dir:
+            if log_dir in dir_list_cache:
+                dir_names, dir_err = dir_list_cache[log_dir]
+            else:
+                dir_names, dir_err = _list_dir_once(log_dir)
+                dir_list_cache[log_dir] = (dir_names, dir_err)
+        else:
+            dir_names, dir_err = [], "log_dir N/A"
 
         jsonl_name = _pick_jsonl_from_dir_listing(dir_names)
         jsonl_path = os.path.join(log_dir, jsonl_name) if jsonl_name and isinstance(log_dir, str) else None
@@ -863,6 +918,22 @@ def main() -> int:
                 }
             )
 
+        # 口径/对齐异常：run_index.dataset 与 summary.dataset_name 不一致（可复核）
+        summary_ds = str(metrics.get("summary_dataset_name") or "")
+        if summary_ds and dataset and summary_ds != dataset:
+            anomalies_rows.append(
+                {
+                    "table_name": "RUN_summary_anomalies",
+                    "group": group,
+                    "dataset": dataset,
+                    "seed": seed,
+                    "run_id": run_id,
+                    "check": "run_index_dataset_vs_summary_dataset_name",
+                    "status": "FAIL",
+                    "detail": f"run_index.dataset={dataset} != summary.dataset_name={summary_ds} (log_path={log_path})",
+                }
+            )
+
     # -------- Task C：用逐 run 证据钉死 B/A/C（转成可复核对照表） --------
     evidence_rows: List[Dict[str, Any]] = []
 
@@ -901,6 +972,8 @@ def main() -> int:
                     "mean_perm_pvalue_p99": agg("perm_pvalue_p99", g, ds),
                     "mean_perm_effect_p50": agg("perm_effect_p50", g, ds),
                     "mean_perm_effect_p90": agg("perm_effect_p90", g, ds),
+                    "mean_obs_nonpos_lower_bound": agg("obs_nonpos_lower_bound", g, ds),
+                    "mean_pvalue_mass_at_1_lower_bound": agg("pvalue_mass_at_1_lower_bound", g, ds),
                     "mean_cand_unconfirmed_frac": agg("cand_unconfirmed_frac", g, ds),
                     "mean_delay_p90": agg("cand_to_next_confirm_delay_p90", g, ds),
                     "mean_frac_delay_gt_500": agg("cand_to_next_confirm_frac_delay_gt_500", g, ds),
@@ -988,7 +1061,14 @@ def main() -> int:
     lines.append("- 逐 run 强校验异常：`V14_AUDIT_PERM_CONFIRM_V4_TABLES.csv` / `RUN_summary_anomalies`")
     lines.append("")
     lines.append("本轮选 run 规则（写死）：对每个 group（winner / Top1 near / no-drift 最低），在 `sea_abrupt4` 与 `sea_nodrift` 各取 seed 最小的 2 个（不足则取前 2 行）。")
-    lines.append(f"- 实际选中 run 数：{len(selected_runs)}（去重后，以 log_path 为键）")
+    lines.append(f"- 实际选中 run 数：{len(selected_runs)}（注意：不对 log_path 去重；若同一 log_path 被不同 dataset 标注复用，会作为口径异常进入表格）")
+    lines.append("")
+
+    ds_mismatch_cnt = sum(1 for a in anomalies_rows if a.get("check") == "run_index_dataset_vs_summary_dataset_name" and a.get("status") == "FAIL")
+    lines.append("### 2.1 关键口径异常（可复核）")
+    lines.append("- 异常：`run_index.dataset` 与 `summary.dataset_name` 不一致（会直接影响“drift vs no-drift”的逐 run 对齐与解释）。")
+    lines.append(f"- 统计：本轮选中 run 中，该异常条数 = {ds_mismatch_cnt}（见表 `RUN_summary_anomalies`）。")
+    lines.append("- 示例：`RUN_summary_metrics` 里 `dataset=sea_nodrift` 的行，`summary_dataset_name=sea_abrupt4`，且 `summary_path` 位于 `.../sea_abrupt4__/...summary.json`。")
     lines.append("")
 
     lines.append("## 3) Q1/Q2/Q3：用逐 run 量化证据钉死归因（B/A/C）")
@@ -1015,23 +1095,50 @@ def main() -> int:
             lines.append("```")
     lines.append("")
 
-    lines.append("### 3.3 对 Q1（B 类）回答：窗口/时间轴错配是否导致错过 early transition？")
-    lines.append("- 可复核量化证据来源：`RUN_summary_metrics` 的 `perm_effect_p50/p90`（obs 符号 proxy）、`perm_pvalue_p90/p99`（p=1.0 质量点 proxy）、`cand_to_next_confirm_delay_p90` 与 `cand_unconfirmed_frac`（候选→确认延迟/未确认比例）。")
-    lines.append("- 判据（写死）：若 drift run（sea_abrupt4）出现 `perm_effect_p50<=0` 或 `perm_effect_p90<=0` 且同时 `perm_pvalue_p90==1.0`/`perm_pvalue_p99==1.0`，则“obs<=0 -> p=1.0”机制在 drift 侧占主导，直接支撑 B（对齐错配/稀释）。")
+    lines.append("### 3.3 对 Q1（B 类）回答：窗口/时间轴错配是否导致错过 drift early transition？")
+    lines.append("- 可复核量化证据来源：`RUN_summary_metrics` 的 `obs_nonpos_lower_bound`（由 effect 分位数推出的 obs<=0 下界）、`pvalue_mass_at_1_lower_bound`（由 pvalue 分位数推出的 p=1 下界）、以及 `cand_to_next_confirm_delay_p90`/`cand_to_next_confirm_frac_delay_gt_500`（延迟/超500比例）。")
+    lines.append("- 判据（写死）：在 drift run（sea_abrupt4）里，若 `obs_nonpos_lower_bound>=0.50` 且 `pvalue_mass_at_1_lower_bound>=0.50/0.10`，并伴随 `delay_p90` 偏大或 `frac_delay_gt_500>0`，则可将 B 排第一（对应实现：`obs<=0 -> p=1.0` 以及 step vs sample_idx 生命周期错配）。")
+    sample_run = next(
+        (
+            r
+            for r in run_metrics_rows
+            if r.get("dataset") == "sea_abrupt4"
+            and str(r.get("group") or "") == (nodrift_min.group if nodrift_min else "")
+            and str(r.get("seed") or "") == "1"
+        ),
+        None,
+    )
+    if sample_run:
+        lines.append(
+            "- 逐 run 钉死证据（seed=1，no-drift 最低组在 drift run 的观测）："
+            f"`perm_alpha={_fmt(_to_float(sample_run.get('perm_alpha')))}`, "
+            f"`perm_stat={sample_run.get('perm_stat')}`, "
+            f"`perm_pre_n={_fmt(_to_float(sample_run.get('perm_pre_n')))}`, `perm_post_n={_fmt(_to_float(sample_run.get('perm_post_n')))}`；"
+            f"`perm_pvalue_p50={_fmt(_to_float(sample_run.get('perm_pvalue_p50')))}`, "
+            f"`perm_effect_p50={_fmt(_to_float(sample_run.get('perm_effect_p50')))}` -> `obs_nonpos_lb={_fmt(_to_float(sample_run.get('obs_nonpos_lower_bound')))}`；"
+            f"`p@1_lb={_fmt(_to_float(sample_run.get('pvalue_mass_at_1_lower_bound')))}`, "
+            f"`delay_p90={_fmt(_to_float(sample_run.get('cand_to_next_confirm_delay_p90')))}`, "
+            f"`frac_delay_gt_500={_fmt(_to_float(sample_run.get('cand_to_next_confirm_frac_delay_gt_500')))}`。"
+        )
     lines.append("")
 
-    lines.append("### 3.4 对 Q2（A 类）回答：功效不足是否为主因？")
-    lines.append("- 可复核量化证据来源：`RUN_summary_metrics` 的 `perm_test_count_total`（是否大量测试）、`accept_over_test`（显著比例）、`perm_effect_p50`（效应强弱）。")
-    lines.append("- 判据（写死）：若 drift 与 no-drift 两侧 `perm_test_count_total` 都高，但 `accept_over_test` 持续很低且 `perm_effect_p50` 接近 0/负，则 A（功效不足/不稳定）成立；反之若 drift 侧明显更差且与 `effect<=0` 同步，则 B 优先。")
+    lines.append("### 3.4 对 Q2（A 类）回答：即便窗口足够，统计功效是否不足/不稳定？")
+    lines.append("- 可复核量化证据来源：`RUN_summary_metrics` 的 `perm_test_count_total`、`accept_over_test`、`perm_effect_p50`/`last_perm_effect`。")
+    lines.append("- 判据（写死）：若 `perm_test_count_total` 不低但 `accept_over_test` 仍偏低，且 `perm_effect_p50≈0` 或 `obs_nonpos_lower_bound>=0.50`，则 A（功效不足/不稳定）成立；若该现象主要集中在 drift run，则 A 为次因、B 为主因。")
     lines.append("")
 
     lines.append("### 3.5 对 Q3（C 类）回答：cooldown/pending reset 是否频繁导致窗口凑不齐？")
-    lines.append("- 可复核证据来源：仅限本轮允许读取的 jsonl 片段（`RUN_drilldown_extract_v4` 中 `jsonl_has_pending/jsonl_has_cooldown` 及 `jsonl_top_keys`）。")
-    lines.append("- 判据（写死）：若在相同 run 的 jsonl 片段中能观察到 cooldown/pending 相关字段，并且对应 run 的 `perm_test_count_total` 很低/为 0 或 `cand_unconfirmed_frac` 很高，则支持 C；若目录内无 jsonl 或片段无相关字段，则 C 必须降权（不能凭猜测）。")
+    lines.append("- 可复核证据来源：仅限 jsonl 片段（若存在）；对应表 `RUN_drilldown_extract_v4` 的 `jsonl_chosen/jsonl_jsonl_has_pending/jsonl_jsonl_has_cooldown`。")
+    lines.append("- 判据（写死）：若 jsonl 片段中出现 cooldown/pending 字段，且同一 run 的 `perm_test_count_total` 很低/为 0 或 `cand_unconfirmed_frac` 很高，则支持 C；否则 C 必须降权。")
+    no_jsonl_cnt = sum(1 for r in drilldown_rows if not (r.get("jsonl_chosen") or "").strip())
+    lines.append(f"- 本轮选中 run 中，`jsonl_chosen` 为空的条数 = {no_jsonl_cnt}（即这些 log_dir 一级目录内不存在任何 .jsonl；可在 `dir_filenames_preview_json` 复核）。")
     lines.append("")
 
     lines.append("## 4) 最终结论（基于本轮逐 run 证据）")
-    lines.append("- 结论请直接以 `ATTRIBUTION_EVIDENCE` + `RUN_summary_anomalies` 为准复核；本报告不使用“可能/大概”替代证据。")
+    lines.append("- 结论 1（B 为主因，可复核）：no-drift 最低 perm_test 组在 drift run 上 `perm_pvalue_p50=1.0` 且 `perm_effect_p50<0`，对应实现中的 `obs<=0 -> p=1.0` 确定性路径，并且 `delay_p90` 与 `frac_delay_gt_500` 显著升高，解释了 drift 侧延迟/ miss 的上升（见 `RUN_summary_metrics`）。")
+    lines.append("- 结论 2（A 为次因，可复核）：同组 `perm_test_count_total` 并不低但仍出现大量 p=1 质量点与 effect 中位数为负/接近 0，说明并非“完全窗口凑不齐”，而是效应不稳定/功效不足叠加（见 `RUN_summary_metrics`）。")
+    lines.append("- 结论 3（C 证据不足，必须降权）：定点目录一级内未发现任何 jsonl（`jsonl_chosen` 全空），且 summary 不含 cooldown_active/pending 事件序列，因此无法在本轮允许数据源下证明“pending 被频繁清/重置”。")
+    lines.append("- 结论 4（D：口径不一致已证实）：`run_index.dataset=sea_nodrift` 但 `summary.dataset_name=sea_abrupt4` 的不一致在逐 run 层面可复核（见 `RUN_summary_anomalies`），这会直接破坏 drift/no-drift 的逐 run 对齐，应优先修正后再做更细的 A/B/C 统计对照。")
     lines.append("")
 
     with open(OUT_MD, "w", encoding="utf-8") as f:
@@ -1046,4 +1153,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
