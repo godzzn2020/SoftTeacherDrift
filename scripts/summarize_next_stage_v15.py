@@ -4,7 +4,7 @@
 """
 V15 汇总入口：
 - 先复用 V14 的 summarize 逻辑生成 report/run_index/metrics_table
-- 再追加 V15 验收问答段落（不影响 V14 逻辑）
+- 再生成“主报告（瘦身）”与“全量报告（大表）”
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 def parse_args() -> argparse.Namespace:
@@ -25,9 +25,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--trackal_csv", type=str, default="scripts/TRACKAL_PERM_CONFIRM_SWEEP_V15.csv")
     p.add_argument("--trackam_csv", type=str, default="scripts/TRACKAM_PERM_DIAG_V15.csv")
     p.add_argument("--out_report", type=str, default="scripts/NEXT_STAGE_V15_REPORT.md")
+    p.add_argument("--out_report_full", type=str, default="scripts/NEXT_STAGE_V15_REPORT_FULL.md")
     p.add_argument("--out_run_index", type=str, default="scripts/NEXT_STAGE_V15_RUN_INDEX.csv")
     p.add_argument("--out_metrics_table", type=str, default="scripts/NEXT_STAGE_V15_METRICS_TABLE.csv")
     p.add_argument("--acc_tolerance", type=float, default=0.01)
+    p.add_argument("--topk", type=int, default=20, help="主报告顶部 Top-K hard-ok 表行数")
     return p.parse_args()
 
 
@@ -78,6 +80,22 @@ def _nd_rate(by_group: Dict[str, Dict[str, Dict[str, str]]], g: str) -> Optional
     return (sea + sine) / 2.0
 
 
+def _nd_mtfa(by_group: Dict[str, Dict[str, Dict[str, str]]], g: str) -> Optional[float]:
+    sea = _safe_float(by_group.get(g, {}).get("sea_nodrift", {}).get("MTFA_win_mean"))
+    sine = _safe_float(by_group.get(g, {}).get("sine_nodrift", {}).get("MTFA_win_mean"))
+    if sea is None or sine is None:
+        return None
+    return (sea + sine) / 2.0
+
+
+def _drift_acc_final(by_group: Dict[str, Dict[str, Dict[str, str]]], g: str) -> Optional[float]:
+    sea = _safe_float(by_group.get(g, {}).get("sea_abrupt4", {}).get("acc_final_mean"))
+    sine = _safe_float(by_group.get(g, {}).get("sine_abrupt4", {}).get("acc_final_mean"))
+    if sea is None or sine is None:
+        return None
+    return (sea + sine) / 2.0
+
+
 def _hard_ok(by_group: Dict[str, Dict[str, Dict[str, str]]], g: str) -> bool:
     sea = by_group.get(g, {}).get("sea_abrupt4", {})
     sine = by_group.get(g, {}).get("sine_abrupt4", {})
@@ -101,11 +119,6 @@ def _violations(by_group: Dict[str, Dict[str, Dict[str, str]]], g: str) -> List[
     if (sea_p90 is None or sea_p90 >= 500.0) or (sine_p90 is None or sine_p90 >= 500.0):
         out.append(f"confP90>=500（sea={sea_p90} sine={sine_p90}）")
     return out or ["N/A"]
-
-
-def _parse_declared_winner(report_text: str) -> Optional[str]:
-    m = re.search(r"\\*\\*winner\\*\\*\\s*\\n\\s*-\\s*`([^`]+)`", report_text)
-    return m.group(1).strip() if m else None
 
 
 def _parse_v14_baseline_nd(v14_report: Path) -> Optional[float]:
@@ -133,81 +146,159 @@ def _parse_v14_baseline_nd(v14_report: Path) -> Optional[float]:
     return None
 
 
-def _postprocess_report_header(out_report: Path) -> Optional[str]:
-    if not out_report.exists():
-        return None
-    text = out_report.read_text(encoding="utf-8", errors="replace")
-    text = text.replace(
-        "# NEXT_STAGE V14 Report（Permutation-test Confirm）",
-        "# NEXT_STAGE V15 Report（Permutation-test Confirm + vote_score）",
-        1,
-    )
-    text = text.replace("python scripts/summarize_next_stage_v14.py", "python scripts/summarize_next_stage_v15.py")
-    out_report.write_text(text, encoding="utf-8")
-    return text
+def _postprocess_report_header_text(text: str, *, title: str, summarize_cmd: str) -> str:
+    out = str(text)
+    out = out.replace("# NEXT_STAGE V14 Report（Permutation-test Confirm）", title, 1)
+    out = out.replace("python scripts/summarize_next_stage_v14.py", summarize_cmd)
+    return out
 
 
-def _append_acceptance_section(trackal_csv: Path, out_report: Path) -> None:
+def _md_table(headers: List[str], rows: List[List[str]]) -> str:
+    if not rows:
+        return "_N/A_"
+    lines: List[str] = []
+    lines.append("| " + " | ".join(headers) + " |")
+    lines.append("|" + "|".join(["---"] * len(headers)) + "|")
+    for r in rows:
+        lines.append("| " + " | ".join(r) + " |")
+    return "\n".join(lines)
+
+
+def _fmt(v: Optional[float], nd: int = 3) -> str:
+    if v is None:
+        return "N/A"
+    if not math.isfinite(v):
+        return "N/A"
+    return f"{v:.{nd}f}"
+
+
+def _build_slim_report(
+    *,
+    trackal_csv: Path,
+    trackam_csv: Path,
+    out_report: Path,
+    out_report_full: Path,
+    topk: int,
+) -> None:
     rows = _read_csv(trackal_csv)
-    if not rows or not out_report.exists():
-        return
+    if not rows:
+        raise FileNotFoundError(f"空或缺失：{trackal_csv}")
 
     best = _pick_best_phase(rows)
     by_group: Dict[str, Dict[str, Dict[str, str]]] = {}
     for (g, d), r in best.items():
         by_group.setdefault(g, {})[d] = r
 
-    baseline = "A_weighted_n5" if "A_weighted_n5" in by_group else None
-    baseline_nd = _nd_rate(by_group, baseline) if baseline else None
+    baseline_group = "A_weighted_n5" if "A_weighted_n5" in by_group else (sorted(by_group.keys())[0] if by_group else "")
+    baseline_nd = _nd_rate(by_group, baseline_group) if baseline_group else None
 
     perm_groups = [g for g in by_group.keys() if str(by_group[g].get("sea_abrupt4", {}).get("confirm_rule") or "") == "perm_test"]
-    hard_and_better: List[Tuple[str, float]] = []
-    for g in perm_groups:
-        if not _hard_ok(by_group, g):
-            continue
-        nd = _nd_rate(by_group, g)
-        if nd is None or baseline_nd is None:
-            continue
-        if nd < baseline_nd:
-            hard_and_better.append((g, float(nd)))
-    hard_and_better.sort(key=lambda x: (x[1], x[0]))
+    hard_perm = [g for g in perm_groups if _hard_ok(by_group, g)]
+    hard_perm.sort(key=lambda g: (_nd_rate(by_group, g) if _nd_rate(by_group, g) is not None else float("inf"), -(float(_nd_mtfa(by_group, g) or -1e18)), g))
 
-    best_perm: Optional[str] = None
-    best_perm_nd: Optional[float] = None
-    for g in sorted(perm_groups):
-        nd = _nd_rate(by_group, g)
-        if nd is None:
-            continue
-        if best_perm_nd is None or nd < best_perm_nd:
-            best_perm = g
-            best_perm_nd = float(nd)
+    hard_and_better: List[str] = []
+    if baseline_nd is not None:
+        for g in hard_perm:
+            nd = _nd_rate(by_group, g)
+            if nd is None:
+                continue
+            if nd < baseline_nd:
+                hard_and_better.append(g)
 
-    report_text = _postprocess_report_header(out_report) or out_report.read_text(encoding="utf-8", errors="replace")
-    declared_winner = _parse_declared_winner(report_text)
+    best_hard = hard_perm[0] if hard_perm else None
+    best_hard_nd = _nd_rate(by_group, best_hard) if best_hard else None
+    best_hard_mtfa = _nd_mtfa(by_group, best_hard) if best_hard else None
+    best_hard_acc = _drift_acc_final(by_group, best_hard) if best_hard else None
+
+    best_better = hard_and_better[0] if hard_and_better else None
+    best_better_nd = _nd_rate(by_group, best_better) if best_better else None
+    best_better_mtfa = _nd_mtfa(by_group, best_better) if best_better else None
+    best_better_acc = _drift_acc_final(by_group, best_better) if best_better else None
+
+    def meta(g: str, key: str) -> str:
+        sea = by_group.get(g, {}).get("sea_abrupt4", {})
+        v = sea.get(key)
+        return str(v) if v is not None else ""
+
+    top_rows: List[List[str]] = []
+    for g in hard_perm[: max(0, int(topk))]:
+        sea = by_group.get(g, {}).get("sea_abrupt4", {})
+        sine = by_group.get(g, {}).get("sine_abrupt4", {})
+        top_rows.append(
+            [
+                g,
+                meta(g, "perm_stat"),
+                meta(g, "perm_alpha"),
+                meta(g, "perm_pre_n"),
+                meta(g, "perm_post_n"),
+                _fmt(_safe_float(sea.get("miss_tol500_mean")), 3),
+                _fmt(_safe_float(sine.get("miss_tol500_mean")), 3),
+                _fmt(_safe_float(sea.get("conf_P90_mean")), 1),
+                _fmt(_safe_float(sine.get("conf_P90_mean")), 1),
+                _fmt(_nd_rate(by_group, g), 3),
+                _fmt(_nd_mtfa(by_group, g), 1),
+                _fmt(_drift_acc_final(by_group, g), 4),
+            ]
+        )
+
+    title = "# NEXT_STAGE V15.1 Report（TopK + 验收前置）"
+    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     v14_baseline_nd = _parse_v14_baseline_nd(Path("scripts/NEXT_STAGE_V14_REPORT.md"))
 
     lines: List[str] = []
+    lines.append(title)
     lines.append("")
-    lines.append("## V15 验收回答")
-    lines.append(f"- 生成时间：{dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    if declared_winner:
-        lines.append(f"- 规则 recompute winner：`{declared_winner}`（仅作对照；V15 约束为“不推翻 V14 winner”）")
+    lines.append(f"- 生成时间：{now}")
+    lines.append(f"- TrackAL：`{trackal_csv}`")
+    lines.append(f"- TrackAM：`{trackam_csv}`")
+    lines.append(f"- 全量报告：`{out_report_full}`（含全表）")
+    lines.append("")
+    lines.append("## 说明（口径）")
+    lines.append("- V15 在 V14 pipeline 上新增 `vote_score` 的 `perm_test` 统计量分支，并支持更小的 `post_n` 与分片并行。")
+    lines.append("- 本节验收：只检查是否存在满足硬约束（sea/sine `miss==0` 且 `confP90<500`）且 no-drift 低于 baseline 的 `perm_test` 配置。")
     if v14_baseline_nd is not None:
-        lines.append(f"- V14 winner 基线 no-drift（来自 `scripts/NEXT_STAGE_V14_REPORT.md`）：{v14_baseline_nd:.3f}")
+        lines.append(f"- 参考：历史 V14 报告中 `A_weighted_n5` no_drift_rate={v14_baseline_nd:.3f}（仅供对照，不作为本次 baseline）。")
     if baseline_nd is not None:
-        lines.append(f"- 本次 V15 重跑基线（`{baseline}`）：confirm_rate_per_10k={baseline_nd:.3f}")
-
-    if hard_and_better:
-        g0, nd0 = hard_and_better[0]
-        vios = "; ".join(_violations(by_group, g0))
-        lines.append(f"- 存在 perm_test 同时满足硬约束且降低 no-drift：`{g0}`（no_drift_rate={nd0:.3f}；违约检查：{vios}）")
+        lines.append(f"- 本次 baseline：`{baseline_group}` no_drift_rate={baseline_nd:.3f}（取自本次 TrackAL 聚合/metrics_table 口径）。")
+    lines.append("")
+    lines.append("## 验收结论（前置）")
+    if best_better and baseline_nd is not None and best_better_nd is not None:
+        delta = best_better_nd - baseline_nd
+        lines.append(
+            f"- ✅ 存在满足硬约束且优于 baseline 的 perm_test：`{best_better}` "
+            f"(no_drift_rate={best_better_nd:.3f}, Δ={delta:+.3f}; MTFA={_fmt(best_better_mtfa,1)}; drift_acc={_fmt(best_better_acc,4)})"
+        )
     else:
-        lines.append("- 未发现 perm_test 同时满足硬约束且降低 no-drift（网格内）")
-        if best_perm is not None and best_perm_nd is not None:
-            vios = "; ".join(_violations(by_group, best_perm))
-            lines.append(f"- no-drift 最低的 perm_test：`{best_perm}`（no_drift_rate={best_perm_nd:.3f}），违约：{vios}")
-
-    out_report.write_text(report_text + "\n".join(lines) + "\n", encoding="utf-8")
+        lines.append("- ❌ 未发现满足硬约束且优于 baseline 的 perm_test（网格内）")
+        if best_hard and best_hard_nd is not None and baseline_nd is not None:
+            delta = best_hard_nd - baseline_nd
+            lines.append(
+                f"- 硬约束内最优候选：`{best_hard}` "
+                f"(no_drift_rate={best_hard_nd:.3f}, Δ={delta:+.3f}; MTFA={_fmt(best_hard_mtfa,1)}; drift_acc={_fmt(best_hard_acc,4)})"
+            )
+    lines.append("")
+    lines.append(f"## Top-K Hard-OK candidates（K={int(topk)}）")
+    headers = [
+        "group",
+        "perm_stat",
+        "perm_alpha",
+        "perm_pre_n",
+        "perm_post_n",
+        "sea_miss",
+        "sine_miss",
+        "sea_confP90",
+        "sine_confP90",
+        "no_drift_rate",
+        "no_drift_MTFA",
+        "drift_acc_final",
+    ]
+    lines.append(_md_table(headers, top_rows))
+    lines.append("")
+    lines.append("## 产物")
+    lines.append(f"- `{out_report}`")
+    lines.append(f"- `{out_report_full}`")
+    out_report.parent.mkdir(parents=True, exist_ok=True)
+    out_report.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def main() -> int:
@@ -225,7 +316,7 @@ def main() -> int:
         "--trackam_csv",
         str(args.trackam_csv),
         "--out_report",
-        str(args.out_report),
+        str(args.out_report_full),
         "--out_run_index",
         str(args.out_run_index),
         "--out_metrics_table",
@@ -234,7 +325,24 @@ def main() -> int:
         str(args.acc_tolerance),
     ]
     subprocess.check_call(cmd)
-    _append_acceptance_section(Path(args.trackal_csv), Path(args.out_report))
+    # 修正 full 报告头部，避免标题/命令误导
+    out_full = Path(args.out_report_full)
+    if out_full.exists():
+        full_text = out_full.read_text(encoding="utf-8", errors="replace")
+        full_text = _postprocess_report_header_text(
+            full_text,
+            title="# NEXT_STAGE V15.1 Report FULL（Permutation-test Confirm + vote_score）",
+            summarize_cmd="python scripts/summarize_next_stage_v15.py",
+        )
+        out_full.write_text(full_text, encoding="utf-8")
+
+    _build_slim_report(
+        trackal_csv=Path(args.trackal_csv),
+        trackam_csv=Path(args.trackam_csv),
+        out_report=Path(args.out_report),
+        out_report_full=Path(args.out_report_full),
+        topk=int(args.topk),
+    )
     return 0
 
 

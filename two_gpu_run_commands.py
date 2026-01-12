@@ -227,32 +227,62 @@ def _print_job(prefix: str, gpu: int, job: CommandJob, message: str) -> None:
 def _extract_output_paths(command: str) -> Dict[str, str]:
     tokens = _parse_arg_tokens(command)
     out: Dict[str, str] = {}
-    for k in ("--log_path", "--out_csv", "--output_dir", "--log_dir"):
+    for k in ("--log_path", "--out_csv", "--output_dir", "--log_dir", "--log_root_suffix", "--log_root", "--run_name"):
         vals = _extract_arg_values(tokens, [k])
         if vals:
             out[k] = str(vals[0])
     return out
 
 
-def _check_output_conflicts(jobs: Sequence[CommandJob]) -> None:
-    seen: Dict[str, List[int]] = {}
+def _normalize_output_value(arg_name: str, value: str) -> str:
+    s = str(value or "").strip()
+    if not s:
+        return ""
+    if arg_name in {"--log_path", "--out_csv", "--output_dir", "--log_dir", "--log_root"}:
+        try:
+            return str(Path(s).expanduser().resolve(strict=False))
+        except Exception:
+            return s
+    return s
+
+
+def _check_output_conflicts(jobs: Sequence[CommandJob], *, allow_missing_outputs: bool) -> None:
+    seen: Dict[tuple[str, str], List[int]] = {}
+    missing: List[CommandJob] = []
     for job in jobs:
         outs = _extract_output_paths(job.command)
         if not outs:
+            missing.append(job)
+            continue
+        for k, v in outs.items():
+            norm_v = _normalize_output_value(k, v)
+            if not norm_v:
+                continue
+            seen.setdefault((k, norm_v), []).append(int(job.index))
+
+    if missing and not allow_missing_outputs:
+        print(
+            "[error] 存在命令未显式提供任何可识别输出隔离参数（将导致并行写冲突风险），已 fail-fast 退出；可用 --allow-missing-outputs 降级为 warn：",
+            file=sys.stderr,
+        )
+        for job in missing:
             print(
-                f"[warn] line={job.index} job={job.job_name} 未解析到输出参数（--log_path/--out_csv/--output_dir/--log_dir）；强烈建议显式指定输出路径以避免并行写冲突。",
+                f"  line={job.index} job={job.job_name}（建议显式指定 --out_csv/--log_path/--output_dir/--log_dir 或至少区分 --log_root_suffix/--log_root/--run_name）",
                 file=sys.stderr,
             )
-            continue
-        for _k, v in outs.items():
-            key = str(v)
-            seen.setdefault(key, []).append(int(job.index))
-    conflicts = {path: lines for path, lines in seen.items() if len(lines) >= 2}
+        raise SystemExit(2)
+    for job in missing:
+        print(
+            f"[warn] line={job.index} job={job.job_name} 未解析到输出参数（--log_path/--out_csv/--output_dir/--log_dir/--log_root_suffix/--log_root/--run_name）；强烈建议显式指定输出路径以避免并行写冲突。",
+            file=sys.stderr,
+        )
+
+    conflicts = {k: lines for k, lines in seen.items() if len(lines) >= 2}
     if conflicts:
         print("[error] 检测到输出路径冲突（同一路径被多条命令使用），已 fail-fast 退出：", file=sys.stderr)
-        for path, lines in sorted(conflicts.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+        for (arg, value), lines in sorted(conflicts.items(), key=lambda kv: (-len(kv[1]), kv[0][0], kv[0][1])):
             lines_str = ",".join(str(x) for x in sorted(lines))
-            print(f"  path={path} lines={lines_str}", file=sys.stderr)
+            print(f"  arg={arg} value={value} lines={lines_str}", file=sys.stderr)
         raise SystemExit(2)
 
 
@@ -265,6 +295,7 @@ def run_jobs_multi_gpu(
     fail_fast: bool = True,
     dry_run: bool = False,
     log_dir: Optional[Path] = None,
+    allow_missing_outputs: bool = False,
 ) -> None:
     if not jobs:
         print("[info] 没有需要运行的任务。")
@@ -279,7 +310,7 @@ def run_jobs_multi_gpu(
     for gpu in gpu_ids:
         print(f"[info] GPU{gpu} state: running=0 cost=0.0 capacity={GPU_CAPACITY:g}")
 
-    _check_output_conflicts(jobs)
+    _check_output_conflicts(jobs, allow_missing_outputs=bool(allow_missing_outputs))
 
     gpu_states: Dict[int, Dict[str, float]] = {gpu: {"running": 0, "cost": 0.0} for gpu in gpu_ids}
 
@@ -366,6 +397,11 @@ def main() -> None:
     p.add_argument("--no-fail-fast", action="store_true", help="遇到失败不立即终止其它任务（不推荐）")
     p.add_argument("--dry-run", action="store_true", help="只打印分配，不执行")
     p.add_argument("--log-dir", type=str, default="", help="保存 stdout/stderr 日志的目录（空表示不落盘）")
+    p.add_argument(
+        "--allow-missing-outputs",
+        action="store_true",
+        help="允许命令缺失输出隔离参数（默认 fail-fast；不推荐）",
+    )
     args = p.parse_args()
 
     cmd_file = Path(args.cmd_file)
@@ -384,6 +420,7 @@ def main() -> None:
         fail_fast=not bool(args.no_fail_fast),
         dry_run=bool(args.dry_run),
         log_dir=log_dir,
+        allow_missing_outputs=bool(args.allow_missing_outputs),
     )
 
 

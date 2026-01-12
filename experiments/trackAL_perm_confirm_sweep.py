@@ -75,6 +75,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--confirm_cooldown", type=int, default=200)
 
     # sweep grid
+    p.add_argument(
+        "--perm_stats",
+        type=str,
+        default="fused_score,delta_fused_score,vote_score",
+        help="逗号分隔 perm_stat 列表（例如 vote_score）",
+    )
     p.add_argument("--perm_alphas", type=str, default="0.05,0.02,0.01,0.005")
     p.add_argument("--perm_pre_ns", type=str, default="200,500")
     p.add_argument("--perm_post_ns", type=str, default="10,20,30,50")
@@ -370,7 +376,15 @@ def main() -> int:
     delta_ks = parse_int_list(str(args.delta_ks))
     perm_n_perm = int(args.perm_n_perm)
 
-    for stat in ("fused_score", "delta_fused_score", "vote_score"):
+    perm_stats = [s.strip() for s in str(getattr(args, "perm_stats", "") or "").split(",") if s.strip()]
+    allowed_stats = {"fused_score", "delta_fused_score", "vote_score"}
+    if not perm_stats:
+        raise ValueError("--perm_stats 不能为空")
+    for s in perm_stats:
+        if s not in allowed_stats:
+            raise ValueError(f"--perm_stats 包含不支持的 stat：{s}（允许：{sorted(allowed_stats)}）")
+
+    for stat in perm_stats:
         for alpha in perm_alphas:
             for pre_n in perm_pre_ns:
                 for post_n in perm_post_ns:
