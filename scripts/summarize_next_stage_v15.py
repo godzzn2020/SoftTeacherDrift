@@ -192,6 +192,17 @@ def _postprocess_report_header_text(text: str, *, title: str, summarize_cmd: str
     return out
 
 
+def _detect_version_tag(name: str) -> str:
+    s = str(name or "")
+    if "V15P3" in s or "V15.3" in s:
+        return "V15.3"
+    if "V15P2" in s or "V15.2" in s:
+        return "V15.2"
+    if "V15P1" in s or "V15.1" in s:
+        return "V15.1"
+    return "V15"
+
+
 def _md_table(headers: List[str], rows: List[List[str]]) -> str:
     if not rows:
         return "_N/A_"
@@ -293,10 +304,7 @@ def _build_slim_report(
 
     version_tag = "V15"
     name = out_report.name
-    if "V15P2" in name or "V15.2" in name:
-        version_tag = "V15.2"
-    elif "V15P1" in name or "V15.1" in name:
-        version_tag = "V15.1"
+    version_tag = _detect_version_tag(name)
     title = f"# NEXT_STAGE {version_tag} Report（TopK + 双最优点 + 验收前置）"
     now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -457,9 +465,10 @@ def main() -> int:
     out_full = Path(args.out_report_full)
     if out_full.exists():
         full_text = out_full.read_text(encoding="utf-8", errors="replace")
+        ver = _detect_version_tag(str(out_full.name))
         full_text = _postprocess_report_header_text(
             full_text,
-            title="# NEXT_STAGE V15.1 Report FULL（Permutation-test Confirm + vote_score）",
+            title=f"# NEXT_STAGE {ver} Report FULL（Permutation-test Confirm + vote_score）",
             summarize_cmd="python scripts/summarize_next_stage_v15.py",
         )
         out_full.write_text(full_text, encoding="utf-8")

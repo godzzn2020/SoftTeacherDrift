@@ -577,6 +577,7 @@ class DriftMonitor:
         n_perm = _int_from(("__perm_n_perm", "perm_n_perm"), int(getattr(self, "perm_n_perm", 200) or 200))
         alpha = _float_from(("__perm_alpha", "perm_alpha"), float(getattr(self, "perm_alpha", 0.01) or 0.01))
         stat = _str_from(("__perm_stat", "perm_stat"), str(getattr(self, "perm_stat", "fused_score") or "fused_score")).lower()
+        side = _str_from(("__perm_side", "perm_side"), str(getattr(self, "perm_side", "one_sided_pos") or "one_sided_pos")).lower()
         min_eff = _float_from(("__perm_min_effect", "perm_min_effect"), float(getattr(self, "perm_min_effect", 0.0) or 0.0))
         rng_seed = _int_from(("__perm_rng_seed", "perm_rng_seed"), int(getattr(self, "perm_rng_seed", 0) or 0))
         delta_k = _int_from(("__perm_delta_k", "perm_delta_k"), int(getattr(self, "perm_delta_k", 50) or 50))
@@ -589,6 +590,8 @@ class DriftMonitor:
             alpha = 0.01
         if stat not in {"fused_score", "delta_fused_score", "vote_score"}:
             stat = "fused_score"
+        if side not in {"one_sided_pos", "two_sided", "abs_one_sided"}:
+            side = "one_sided_pos"
         min_eff = float(min_eff)
         delta_k = max(1, int(delta_k))
         return {
@@ -597,6 +600,7 @@ class DriftMonitor:
             "n_perm": n_perm,
             "alpha": alpha,
             "stat": stat,
+            "side": side,
             "min_effect": min_eff,
             "rng_seed": int(rng_seed),
             "delta_k": delta_k,
@@ -626,6 +630,62 @@ class DriftMonitor:
             post_p = allv[idx[n_pre:]]
             perm_obs = float(post_p.mean() - pre_p.mean())
             if perm_obs >= obs:
+                ge += 1
+        p = (1.0 + float(ge)) / (1.0 + float(int(n_perm)))
+        return float(p), float(obs)
+
+    def _perm_test(
+        self,
+        pre_seq: List[float],
+        post_seq: List[float],
+        *,
+        n_perm: int,
+        seed: int,
+        side: str,
+    ) -> Tuple[float, float]:
+        pre = np.asarray(list(pre_seq), dtype=np.float64)
+        post = np.asarray(list(post_seq), dtype=np.float64)
+        if pre.size <= 0 or post.size <= 0:
+            return float("nan"), float("nan")
+
+        obs = float(post.mean() - pre.mean())
+        side = str(side or "one_sided_pos").lower()
+        if side not in {"one_sided_pos", "two_sided", "abs_one_sided"}:
+            side = "one_sided_pos"
+
+        if side == "one_sided_pos":
+            return self._perm_test_one_sided(pre_seq, post_seq, n_perm=n_perm, seed=seed)
+
+        allv = np.concatenate([pre, post], axis=0)
+        n_pre = int(pre.size)
+        rng = np.random.default_rng(int(seed))
+
+        if side == "abs_one_sided":
+            threshold = float(abs(obs))
+            if not (threshold > 0.0):
+                return 1.0, float(threshold)
+            ge = 0
+            for _ in range(int(n_perm)):
+                idx = rng.permutation(allv.size)
+                pre_p = allv[idx[:n_pre]]
+                post_p = allv[idx[n_pre:]]
+                perm_eff = float(abs(post_p.mean() - pre_p.mean()))
+                if perm_eff >= threshold:
+                    ge += 1
+            p = (1.0 + float(ge)) / (1.0 + float(int(n_perm)))
+            return float(p), float(threshold)
+
+        # two_sided
+        threshold = float(abs(obs))
+        if not (threshold > 0.0):
+            return 1.0, float(obs)
+        ge = 0
+        for _ in range(int(n_perm)):
+            idx = rng.permutation(allv.size)
+            pre_p = allv[idx[:n_pre]]
+            post_p = allv[idx[n_pre:]]
+            perm_eff = float(abs(post_p.mean() - pre_p.mean()))
+            if perm_eff >= threshold:
                 ge += 1
         p = (1.0 + float(ge)) / (1.0 + float(int(n_perm)))
         return float(p), float(obs)
@@ -822,7 +882,8 @@ class DriftMonitor:
                         post_seq = list(self._perm_post_seq[-post_n:])
                         n_perm = int(perm_cfg.get("n_perm") or 200)
                         rng_seed = int(perm_cfg.get("rng_seed") or 0)
-                        p, obs = self._perm_test_one_sided(pre_seq, post_seq, n_perm=n_perm, seed=rng_seed)
+                        side = str(perm_cfg.get("side") or "one_sided_pos")
+                        p, obs = self._perm_test(pre_seq, post_seq, n_perm=n_perm, seed=rng_seed, side=side)
                         self.last_perm_pvalue = float(p)
                         self.last_perm_effect = float(obs)
                         self.perm_test_count_total += 1
@@ -832,7 +893,8 @@ class DriftMonitor:
                             self._perm_effects.append(float(obs))
                         alpha = float(perm_cfg.get("alpha") or 0.01)
                         min_eff = float(perm_cfg.get("min_effect") or 0.0)
-                        perm_ok = bool(float(p) <= float(alpha) and float(obs) >= float(min_eff))
+                        eff_for_min = float(obs) if str(side).lower() == "one_sided_pos" else float(abs(obs))
+                        perm_ok = bool(float(p) <= float(alpha) and float(eff_for_min) >= float(min_eff))
                         if perm_ok:
                             self.perm_accept_count_total += 1
                         else:
