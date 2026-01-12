@@ -1,0 +1,2 @@
+[shard] num_shards=2 shard_idx=1 groups=64
+[done] wrote scripts/TRACKAL_PERM_CONFIRM_SWEEP_V15_shard1.csv rows=256
