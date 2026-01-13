@@ -10,7 +10,7 @@
 - 目标：在满足约束下最小化 no-drift `confirm_rate_per_10k`（`sea_nodrift` + `sine_nodrift` 平均；次选最大化 no-drift `MTFA_win`）
 
 ## Track AL：Perm-confirm sweep
-- 产物：`scripts/TRACKAL_PERM_CONFIRM_SWEEP.csv`
+- 产物：`artifacts/v14/tables/TRACKAL_PERM_CONFIRM_SWEEP.csv`
 
 | group | phase | confirm_rule | perm_stat | perm_alpha | perm_pre_n | perm_post_n | delta_k | sea_miss | sea_confP90 | sine_miss | sine_confP90 | no_drift_rate | no_drift_MTFA | drift_acc_final |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -75,7 +75,7 @@
 - - winner：`A_weighted_n5`（见 Track AL）
 - - no-drift confirm_rate_per_10k（平均）变化：26.880 → 26.880 (Δ=+0.000)
 - - perm_test 最佳降误报候选（网格内）：`P_perm_fused_score_a0.005_pre200_post30_n5` no_drift_rate=16.500, sea(miss=0.150,confP90=485.7), sine(miss=0.250,confP90=506.8)
-- - Track AM：已生成 `scripts/TRACKAM_PERM_DIAG.csv` rows=8（p-value 分布/confirmed-candidate 比例见诊断表）
+- - Track AM：已生成 `artifacts/v14/tables/TRACKAM_PERM_DIAG.csv` rows=8（p-value 分布/confirmed-candidate 比例见诊断表）
 
 ## 可复制运行命令
 - `source ~/anaconda3/etc/profile.d/conda.sh && conda activate ZZNSTD`

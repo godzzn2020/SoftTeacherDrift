@@ -193,8 +193,8 @@
 
 ### 5.3 D1：RUN_INDEX 生成逻辑定位（scripts/summarize_next_stage_v14.py）
 ```py
-0021:     p.add_argument("--out_run_index", type=str, default="scripts/NEXT_STAGE_V14_RUN_INDEX.csv")
-0022:     p.add_argument("--out_metrics_table", type=str, default="scripts/NEXT_STAGE_V14_METRICS_TABLE.csv")
+0021:     p.add_argument("--out_run_index", type=str, default="artifacts/v14/tables/NEXT_STAGE_V14_RUN_INDEX.csv")
+0022:     p.add_argument("--out_metrics_table", type=str, default="artifacts/v14/tables/NEXT_STAGE_V14_METRICS_TABLE.csv")
 0023:     p.add_argument("--acc_tolerance", type=float, default=0.01)
 0024:     return p.parse_args()
 0025: 
@@ -283,4 +283,3 @@
 
 ## 7) 白名单文件缺失（如有）
 - 无
-

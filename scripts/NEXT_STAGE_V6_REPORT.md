@@ -1,1 +1,0 @@
-../artifacts/v6/reports/NEXT_STAGE_V6_REPORT.md

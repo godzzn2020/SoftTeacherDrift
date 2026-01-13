@@ -1,1 +1,0 @@
-../artifacts/v15p1/commands/V15P1_vote_score_local_sweep_cmds.txt

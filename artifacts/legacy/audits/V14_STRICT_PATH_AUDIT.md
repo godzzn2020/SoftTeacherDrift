@@ -5,7 +5,7 @@
 - summary 读取仅按固定规则：`log_path` 末尾 `.csv -> .summary.json`（否则仅追加一次 `.summary.json`）。
 
 ## 总览
-- RUN_INDEX：`scripts/NEXT_STAGE_V14_RUN_INDEX.csv`
+- RUN_INDEX：`artifacts/v14/tables/NEXT_STAGE_V14_RUN_INDEX.csv`
 - 总行数：980
 - 违反行数：0
 - 输出：`scripts/V14_STRICT_PATH_AUDIT.md`、`scripts/V14_STRICT_PATH_AUDIT.csv`
@@ -27,4 +27,3 @@ _N/A_
 
 ## Top-50 违反样例
 _N/A_
-

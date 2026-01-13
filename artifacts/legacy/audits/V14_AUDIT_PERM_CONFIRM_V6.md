@@ -8,11 +8,11 @@
 ## 0) 审计范围声明（强约束）
 - 只读：未修改任何既有代码/配置；未重跑训练/未生成新 runs（本审计仅读取既有产物与 summary）。
 - 未做任何全局搜索/递归扫描（未使用 find/rg/grep -R/os.walk/glob("**")）。
-- 逐 run 定位唯一来源：`scripts/NEXT_STAGE_V14_RUN_INDEX.csv` 的 `log_path`。
+- 逐 run 定位唯一来源：`artifacts/v14/tables/NEXT_STAGE_V14_RUN_INDEX.csv` 的 `log_path`。
 - summary 定位规则固定：`summary_path = Path(log_path).with_suffix(".summary.json")`；不 listdir、不 glob。
 
 ## 1) RUN_INDEX 总览
-- RUN_INDEX：`scripts/NEXT_STAGE_V14_RUN_INDEX.csv` rows=980
+- RUN_INDEX：`artifacts/v14/tables/NEXT_STAGE_V14_RUN_INDEX.csv` rows=980
 - R1 推断 logs root：`logs_v14fix1`
 
 ## 2) R 规则（fail-fast）
@@ -25,7 +25,7 @@
 | R5 | PASS | tables consistent with stats |
 
 ## 2.1) 旁证：V14_STRICT_PATH_AUDIT（独立脚本输出）
-- RUN_INDEX：`scripts/NEXT_STAGE_V14_RUN_INDEX.csv`
+- RUN_INDEX：`artifacts/v14/tables/NEXT_STAGE_V14_RUN_INDEX.csv`
 - 总行数：980
 - 违反行数：0
 

@@ -8,7 +8,7 @@
 V11-Track AD：Gradual drift 的区间 GT 口径重算（stagger_gradual_frequent）
 ================================================
 
-产物：`scripts/TRACKAD_GRADUAL_TOL_AUDIT.csv`
+产物：`artifacts/tracks/TRACKAD_GRADUAL_TOL_AUDIT.csv`
 
 | group | n_runs | miss_tol500_start | miss_tol500_mid | miss_tol500_end | delay_start_P90 | delay_mid_P90 | delay_end_P90 |
 |---|---|---|---|---|---|---|---|
@@ -25,7 +25,7 @@ V11-Track AD：Gradual drift 的区间 GT 口径重算（stagger_gradual_frequen
 V11-Track AE：no-drift 约束下的 PH 校准（降低误报密度）
 ================================================
 
-产物：`scripts/TRACKAE_PH_CALIBRATION_WITH_NODRIFT.csv`
+产物：`artifacts/tracks/TRACKAE_PH_CALIBRATION_WITH_NODRIFT.csv`
 
 | error.threshold | error.min_instances | sea_miss | sea_conf_P90 | sine_miss | sine_conf_P90 | no_drift_rate | no_drift_MTFA | constraints_ok |
 |---|---|---|---|---|---|---|---|---|
@@ -48,7 +48,7 @@ V11-Track AE：no-drift 约束下的 PH 校准（降低误报密度）
 V11-Track AF：INSECTS 恢复收益的配对置信区间（不新跑）
 ================================================
 
-输入：`scripts/TRACKAC_RECOVERY_WINDOW_SWEEP.csv`（seeds=40，baseline vs v2）
+输入：`artifacts/tracks/TRACKAC_RECOVERY_WINDOW_SWEEP.csv`（seeds=40，baseline vs v2）
 
 | window | metric | delta_mean | ci95 | n_seeds |
 |---|---|---|---|---|

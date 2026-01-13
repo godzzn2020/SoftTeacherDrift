@@ -1,10 +1,10 @@
 # NEXT_STAGE Report (Track F/G/H)
 
 - 生成时间：2026-01-07 14:55:31
-- TrackF CSV：`scripts/TRACKF_THRESHOLD_SWEEP.csv`
-- TrackG CSV：`scripts/TRACKG_TWO_STAGE.csv`
-- TrackH CSV：`scripts/TRACKH_SEVERITY_GATING.csv`
-- 图：`scripts/figures/trackF_theta_mdr_mtfa.png`、`scripts/figures/trackF_theta_acc_final.png`
+- TrackF CSV：`artifacts/tracks/TRACKF_THRESHOLD_SWEEP.csv`
+- TrackG CSV：`artifacts/tracks/TRACKG_TWO_STAGE.csv`
+- TrackH CSV：`artifacts/tracks/TRACKH_SEVERITY_GATING.csv`
+- 图：`artifacts/tracks/figures/trackF_theta_mdr_mtfa.png`、`artifacts/tracks/figures/trackF_theta_acc_final.png`
 
 ## Track F：weighted 阈值扫描（trade-off）
 

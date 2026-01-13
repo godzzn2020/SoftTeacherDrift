@@ -2,3 +2,9 @@
 *.parquet
 data/synthetic
 datasets
+
+# 运行期产物（不要直接落在仓库根目录；应归档到 artifacts/）
+logs/
+results/
+figures/
+logs_two_gpu/
