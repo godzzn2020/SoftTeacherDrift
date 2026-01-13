@@ -33,7 +33,7 @@
 - - winner：`P_perm_vote_score_a0.03_pre500_post10_n5`（见 Track AL）
 - - no-drift confirm_rate_per_10k（平均）变化：26.780 → 26.210 (Δ=-0.570)
 - - perm_test 最佳降误报候选（网格内）：`P_perm_vote_score_a0.03_pre500_post10_n5` no_drift_rate=26.210, sea(miss=0.000,confP90=258.2), sine(miss=0.000,confP90=179.2)
-- - Track AM：已生成 `scripts/TRACKAM_PERM_DIAG_V15P3.csv` rows=8（p-value 分布/confirmed-candidate 比例见诊断表）
+- - Track AM：已生成 `scripts/TRACKAM_PERM_DIAG_V15P3.csv` rows=10（含 stagger_abrupt3；p-value 分布/confirmed-candidate 比例见诊断表）
 
 ## 可复制运行命令
 - `source ~/anaconda3/etc/profile.d/conda.sh && conda activate ZZNSTD`

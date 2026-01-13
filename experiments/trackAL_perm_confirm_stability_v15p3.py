@@ -36,10 +36,10 @@ from soft_drift.utils.run_paths import ExperimentRun, create_experiment_run
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="V15.2: vote_score stability check")
+    p = argparse.ArgumentParser(description="V15P3: vote_score stability check (tiny ablation)")
     p.add_argument("--device", type=str, default="cuda")
     p.add_argument("--logs_root", type=str, default="logs")
-    p.add_argument("--log_root_suffix", type=str, default="", help="用于输出隔离；例如 v15p2_s0 -> logs_v15p2_s0")
+    p.add_argument("--log_root_suffix", type=str, default="", help="用于输出隔离；例如 v15p3_s0 -> logs_v15p3_s0")
     p.add_argument("--results_root", type=str, default="results")
     p.add_argument("--out_csv", type=str, required=True, help="聚合输出 CSV（每个 shard 不同）")
     p.add_argument("--out_raw_csv", type=str, required=True, help="明细输出 CSV（每个 shard 不同）")
@@ -273,6 +273,8 @@ def _safe_float(v: Any) -> Optional[float]:
 
 def main() -> int:
     args = parse_args()
+    experiment_name = "trackAL_perm_confirm_stability_v15p3"
+    assert "v15p3" in experiment_name.lower()
     out_csv = Path(args.out_csv)
     out_raw_csv = Path(args.out_raw_csv)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
@@ -409,7 +411,7 @@ def main() -> int:
 
     for g in groups:
         exp_run = create_experiment_run(
-            experiment_name="trackAL_perm_confirm_stability_v15p2",
+            experiment_name=experiment_name,
             results_root=Path(args.results_root),
             logs_root=logs_root,
             run_name=str(g["group"]),

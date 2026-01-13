@@ -299,6 +299,7 @@ class DriftMonitor:
 
         # permutation-test confirm（two_stage confirm_rule=perm_test）
         self.last_perm_pvalue: float = float("nan")
+        # 口径：one_sided_pos -> signed(post.mean-pre.mean)；two_sided/abs_one_sided -> abs(post.mean-pre.mean)
         self.last_perm_effect: float = float("nan")
         self.perm_test_count_total: int = 0
         self.perm_accept_count_total: int = 0
@@ -673,12 +674,13 @@ class DriftMonitor:
                 if perm_eff >= threshold:
                     ge += 1
             p = (1.0 + float(ge)) / (1.0 + float(int(n_perm)))
+            # effect 口径：two_sided/abs_one_sided 统一输出 abs(obs)
             return float(p), float(threshold)
 
         # two_sided
         threshold = float(abs(obs))
         if not (threshold > 0.0):
-            return 1.0, float(obs)
+            return 1.0, float(threshold)
         ge = 0
         for _ in range(int(n_perm)):
             idx = rng.permutation(allv.size)
@@ -688,7 +690,8 @@ class DriftMonitor:
             if perm_eff >= threshold:
                 ge += 1
         p = (1.0 + float(ge)) / (1.0 + float(int(n_perm)))
-        return float(p), float(obs)
+        # effect 口径：two_sided/abs_one_sided 统一输出 abs(obs)
+        return float(p), float(threshold)
 
     def update(self, values: Dict[str, float], step: int, sample_idx: Optional[int] = None) -> Tuple[bool, float]:
         """输入最新批次统计，返回漂移标志与严重度。"""
@@ -1032,3 +1035,37 @@ def build_default_monitor(
     setattr(monitor, "ph_overrides", merged_overrides)
     setattr(monitor, "ph_params", used_params)
     return monitor
+
+
+def _quickcheck_perm_test_sides() -> None:
+    m = DriftMonitor(detectors={})
+    pre = [0.0] * 50
+    post_small = [0.2] * 50
+    post_big = [1.0] * 50
+    n_perm = 200
+    seed = 0
+
+    p_small, e_small = m._perm_test(pre, post_small, n_perm=n_perm, seed=seed, side="one_sided_pos")
+    p_big, e_big = m._perm_test(pre, post_big, n_perm=n_perm, seed=seed, side="one_sided_pos")
+    assert 0.0 <= p_small <= 1.0 and 0.0 <= p_big <= 1.0
+    assert e_small > 0 and e_big > 0
+    assert p_big <= p_small, (p_small, p_big)
+    assert abs(e_small - 0.2) < 1e-12 and abs(e_big - 1.0) < 1e-12
+
+    p2, e2 = m._perm_test(pre, post_big, n_perm=n_perm, seed=seed, side="two_sided")
+    pa, ea = m._perm_test(pre, post_big, n_perm=n_perm, seed=seed, side="abs_one_sided")
+    assert 0.0 <= p2 <= 1.0 and 0.0 <= pa <= 1.0
+    assert abs(e2 - 1.0) < 1e-12 and abs(ea - 1.0) < 1e-12
+    assert abs(p2 - pa) < 1e-12, (p2, pa)
+
+    # one_sided_pos：负效应直接返回 p=1（与历史行为一致）；two_sided/abs_one_sided：effect 取 abs(obs)
+    p_neg, e_neg = m._perm_test(pre, [-1.0] * 50, n_perm=n_perm, seed=seed, side="one_sided_pos")
+    p_neg2, e_neg2 = m._perm_test(pre, [-1.0] * 50, n_perm=n_perm, seed=seed, side="two_sided")
+    assert abs(p_neg - 1.0) < 1e-12 and e_neg < 0
+    assert 0.0 <= p_neg2 <= 1.0 and abs(e_neg2 - 1.0) < 1e-12
+
+    print("[quickcheck] perm_side effect semantics OK")
+
+
+if __name__ == "__main__":
+    _quickcheck_perm_test_sides()

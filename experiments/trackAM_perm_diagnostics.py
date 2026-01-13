@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--datasets",
         type=str,
-        default="sea_nodrift,sine_nodrift,sea_abrupt4,sine_abrupt4",
+        default="sea_nodrift,sine_nodrift,sea_abrupt4,sine_abrupt4,stagger_abrupt3",
         help="逗号分隔 dataset 列表",
     )
     p.add_argument("--acc_tolerance", type=float, default=0.01)

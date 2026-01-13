@@ -9,6 +9,7 @@
 - sea/sine hard-ok：成立（best_acceptance=`P_perm_vote_score_a0.03_pre500_post10_n5` 在 `sea_abrupt4/sine_abrupt4` 上均为 miss=0 且 confP90<500）。
 - no-drift 相对 baseline：仍平均更低（best_acceptance vs `A_weighted_n5`：Δ_no_drift_rate mean=-0.570，p50=-0.800，p90=0.250）。
 - stagger_abrupt3 seed=3 worst-case：已修复（原 V15.2 的 `miss=0.5, confP90=10000` 由 GT anchors 口径错误触发；本次同组 `P_perm_vote_score_a0.02_pre500_post10_n5` 在 `stagger_abrupt3 seed=3` 上 miss=0 且 confP90≈59.8）。
+- stagger 诊断证据来源：来自本次 stability runs 的 `.summary.json`（同样被 `experiments/trackAM_perm_diagnostics.py` 汇总进 `scripts/TRACKAM_PERM_DIAG_V15P3.csv`，包含 `stagger_abrupt3` 行）。
 
 ## 说明（口径）
 - V15 在 V14 pipeline 上新增 `vote_score` 的 `perm_test` 统计量分支，并支持更小的 `post_n` 与分片并行。
