@@ -1,0 +1,9 @@
+track,dataset,group,phase,confirm_rule,perm_stat,delta_k,perm_alpha,perm_pre_n,perm_post_n,perm_n_perm,n_runs,candidate_count_mean,candidate_count_std,confirmed_count_mean,confirmed_count_std,confirmed_over_candidate_mean,perm_pvalue_p50_mean,perm_pvalue_p90_mean,perm_pvalue_p99_mean,perm_pvalue_le_alpha_ratio_mean
+AM,sea_nodrift,A_weighted_n5,quick,weighted,N/A,N/A,N/A,N/A,N/A,N/A,5,144.4,3.1304951684997055,144.4,3.1304951684997055,1.0,,,,
+AM,sine_nodrift,A_weighted_n5,quick,weighted,N/A,N/A,N/A,N/A,N/A,N/A,5,24.2,2.16794833886788,24.2,2.16794833886788,1.0,,,,
+AM,sea_abrupt4,A_weighted_n5,quick,weighted,N/A,N/A,N/A,N/A,N/A,N/A,5,147.8,3.492849839314596,147.8,3.492849839314596,1.0,,,,
+AM,sine_abrupt4,A_weighted_n5,quick,weighted,N/A,N/A,N/A,N/A,N/A,N/A,5,147.0,3.8078865529319543,146.8,3.492849839314596,0.9986842105263158,,,,
+AM,sea_nodrift,P_perm_vote_score_a0.005_pre500_post10_n5,quick,perm_test,vote_score,N/A,0.005,500,10,200,5,146.6,2.3021728866442674,145.6,2.3021728866442674,0.9931773789975761,0.004975124378109453,0.004975124378109453,0.004975124378109453,1.0
+AM,sine_nodrift,P_perm_vote_score_a0.005_pre500_post10_n5,quick,perm_test,vote_score,N/A,0.005,500,10,200,5,23.0,3.391164991562634,22.0,3.391164991562634,0.9556727716727716,0.004975124378109453,0.004975124378109453,0.004975124378109453,1.0
+AM,sea_abrupt4,P_perm_vote_score_a0.005_pre500_post10_n5,quick,perm_test,vote_score,N/A,0.005,500,10,200,5,145.4,4.560701700396552,144.4,4.560701700396552,0.993116851166895,0.004975124378109453,0.004975124378109453,0.004975124378109453,1.0
+AM,sine_abrupt4,P_perm_vote_score_a0.005_pre500_post10_n5,quick,perm_test,vote_score,N/A,0.005,500,10,200,5,147.6,2.701851217221259,146.6,2.701851217221259,0.9932230806861679,0.004975124378109453,0.004975124378109453,0.004975124378109453,1.0

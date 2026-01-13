@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """
-NEXT_STAGE V14 - Track AM（推荐）：Permutation-test confirm 机制诊断
+NEXT_STAGE V15P3 - Track AM（可审计诊断）：Permutation-test confirm 机制诊断
 
-目的：解释 perm_test 如何降低 no-drift 误报。
+目的：解释 perm_test 如何降低 no-drift 误报，并提供可复核的 p-value / confirmed-candidate 统计。
 
 实现策略（避免扫描 logs/）：
-- 读取 Track AL 的聚合 CSV（含 run_index_json）
+- 读取 Track AL 的聚合 CSV（含 run_index_json；建议使用 stability 产物）
 - 只打开该 CSV 指定 runs 的单个 `.summary.json`（run-level 小文件）
 
-输出：scripts/TRACKAM_PERM_DIAG.csv
+输出：scripts/TRACKAM_PERM_DIAG_V15P3.csv（默认）
 """
 
 from __future__ import annotations
@@ -24,8 +24,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Track AM: permutation-test diagnostics (from Track AL runs)")
-    p.add_argument("--trackal_csv", type=str, default="scripts/TRACKAL_PERM_CONFIRM_SWEEP.csv")
-    p.add_argument("--out_csv", type=str, default="scripts/TRACKAM_PERM_DIAG.csv")
+    p.add_argument("--trackal_csv", type=str, default="artifacts/v15p3/tables/TRACKAL_PERM_CONFIRM_STABILITY_V15P3.csv")
+    p.add_argument("--out_csv", type=str, default="artifacts/v15p3/tables/TRACKAM_PERM_DIAG_V15P3.csv")
     p.add_argument(
         "--groups",
         type=str,
@@ -158,6 +158,11 @@ def main() -> int:
     if not rows:
         print(f"[warn] empty: {trackal_path}")
         return 0
+
+    trackal_hint = (trackal_path.name or "").upper()
+    if "V15P3" not in trackal_hint and "V15.3" not in trackal_hint:
+        # 仅提示，不 hard fail：兼容旧用法/旧文件名
+        print(f"[warn] trackal_csv 可能不是 V15P3 产物：{trackal_path}")
 
     datasets = [d.strip() for d in str(args.datasets).split(",") if d.strip()]
 

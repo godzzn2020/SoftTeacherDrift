@@ -27,6 +27,7 @@
 
 ## 数据与日志约定
 
+- 实验产物（报告/表格/命令/归档日志）统一归档在 `artifacts/<version>/`，版本入口见 `artifacts/INDEX.md`；目录规范见 `docs/EXPERIMENT_ARTIFACT_RULES.md`。
 - 合成数据存放在 `data/synthetic/{dataset_name}/`，文件命名为：
   - `{dataset_name}__seed{seed}_data.parquet`：包含时间步 `t`、`concept_id`、`is_drift`、`drift_id`、`y` 及特征列；
   - `{dataset_name}__seed{seed}_meta.json`：记录漂移真值、概念区间、生成器参数等。

@@ -2,6 +2,8 @@
 
 ## 核心总览
 - [PROJECT_OVERVIEW](PROJECT_OVERVIEW.md) — 项目简介、代码结构、协作规则
+- [EXPERIMENT_ARTIFACT_RULES](EXPERIMENT_ARTIFACT_RULES.md) — 实验产物/日志归档规范（artifacts 目录）
+- [artifacts/INDEX](../artifacts/INDEX.md) — 各版本入口索引（报告/CSV/日志/命令）
 
 ## 模块级文档
 - [数据流与合成生成](modules/data_streams.md) — `data/streams.py` 及相关工具
