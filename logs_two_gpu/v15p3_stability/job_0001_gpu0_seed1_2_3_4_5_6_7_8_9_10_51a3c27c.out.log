@@ -1,0 +1,3 @@
+[shard] num_shards=2 shard_idx=0 groups=4
+[done] wrote scripts/TRACKAL_PERM_CONFIRM_STABILITY_V15P3_shard0.csv rows=28
+[done] wrote scripts/TRACKAL_PERM_CONFIRM_STABILITY_V15P3_RAW_shard0.csv rows=280
