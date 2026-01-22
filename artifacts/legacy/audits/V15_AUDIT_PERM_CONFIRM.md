@@ -1,7 +1,7 @@
 # V15 审计（Permutation-test Confirm）
 
 - 生成时间：2026-01-12 01:36:06
-- RUN_INDEX：`artifacts/v15/tables/NEXT_STAGE_V15_RUN_INDEX.csv` rows=2580
+- RUN_INDEX：`scripts/NEXT_STAGE_V15_RUN_INDEX.csv` rows=2580
 
 ## 检查摘要
 - missing_log_path=0

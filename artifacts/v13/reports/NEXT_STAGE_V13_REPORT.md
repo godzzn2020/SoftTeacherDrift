@@ -12,7 +12,7 @@
 V13-Track AJ（必做）：Confirm-rule ablation for no-drift
 ================================================
 
-产物：`artifacts/tracks/TRACKAJ_CONFIRM_RULE_NODRIFT.csv`
+产物：`scripts/TRACKAJ_CONFIRM_RULE_NODRIFT.csv`
 
 | group | divgate_value_thr | errgate_thr | sea_miss | sea_confP90 | sine_miss | sine_confP90 | no_drift_rate | no_drift_MTFA | drift_acc_final |
 |---|---|---|---|---|---|---|---|---|---|

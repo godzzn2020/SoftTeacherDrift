@@ -297,7 +297,7 @@ python evaluation/phaseC_scheduler_ablation_real.py \
 | `--model_variant` | 使用哪种模型日志 | `baseline_student` |
 | `--seeds` | 需要复现的随机种子 | `1 2 3` |
 | `--logs_root` / `--synth_root` / `--insects_meta` | 数据输入路径 | `logs` / `data/synthetic` / `datasets/real/INSECTS_abrupt_balanced.json` |
-| `--out_csv` / `--out_md_dir` | 输出文件夹 | `artifacts/legacy/results/offline_detector_grid.csv` / `artifacts/legacy/results/offline_md` |
+| `--out_csv` / `--out_md_dir` | 输出文件夹 | `results/offline_detector_grid.csv` / `results/offline_md` |
 | `--top_k` | Markdown 中每个数据集保留的配置数 | `10` |
 | `--debug_sanity` | 仅运行 ADWIN/PH 演示序列，确认是否能触发漂移 | `False` |
 
@@ -320,7 +320,7 @@ python experiments/offline_detector_sweep.py \
 | `--datasets` | 待分析的数据集（必填，可多选） | — |
 | `--models` | 需要对比的模型（必填） | — |
 | `--seeds` | 随机种子列表（必填） | — |
-| `--logs_root` / `--synth_root` / `--results_root` / `--fig_root` | 输入输出路径 | `artifacts/legacy/logs` / `data/synthetic` / `artifacts/legacy/results` / `artifacts/legacy/figures/abrupt` |
+| `--logs_root` / `--synth_root` / `--results_root` / `--fig_root` | 输入输出路径 | `logs` / `data/synthetic` / `results` / `figures/abrupt` |
 | `--insects_meta` | INSECTS meta 路径 | `datasets/real/INSECTS_abrupt_balanced.json` |
 
 - 示例：
@@ -420,17 +420,17 @@ python experiments/parallel_stage1_launcher.py \
 
 ### experiments/summarize_online_results.py
 
-- 作用：读取 `artifacts/legacy/logs/{dataset}/{dataset}__{model}__seed{seed}.csv`，统计最终准确率/Kappa/漂移事件数量以及在线检测指标（MDR/MTD/MTFA/MTR），并输出
-  `artifacts/legacy/results/online_runs.csv`、`artifacts/legacy/results/online_summary.csv`、`artifacts/legacy/results/online_summary.md`。同时生成 Accuracy SVG (`artifacts/legacy/figures/online_accuracy/`) 和检测时间线 SVG (`artifacts/legacy/figures/online_detections/`)，与离线结果对照。
+- 作用：读取 `logs/{dataset}/{dataset}__{model}__seed{seed}.csv`，统计最终准确率/Kappa/漂移事件数量以及在线检测指标（MDR/MTD/MTFA/MTR），并输出
+  `results/online_runs.csv`、`results/online_summary.csv`、`results/online_summary.md`。同时生成 Accuracy SVG (`figures/online_accuracy/`) 和检测时间线 SVG (`figures/online_detections/`)，与离线结果对照。
 - 核心参数：
 
 | 参数 | 说明 | 默认 |
 | --- | --- | --- |
 | `--datasets` / `--models` | 需要统计的组合（或 `all`） | `sea_abrupt4,...` / `baseline_student,...` |
 | `--seeds` | 复数 seed | `1 2 3` |
-| `--logs_root` | 日志根目录 | `artifacts/legacy/logs` |
-| `--out_runs_csv` / `--out_summary_csv` / `--out_md` | 输出表路径 | `artifacts/legacy/results/online_runs.csv` 等 |
-| `--fig_dir` / `--detection_fig_dir` | Accuracy / Detection SVG 输出目录 | `artifacts/legacy/figures/online_accuracy` / `artifacts/legacy/figures/online_detections` |
+| `--logs_root` | 日志根目录 | `logs` |
+| `--out_runs_csv` / `--out_summary_csv` / `--out_md` | 输出表路径 | `results/online_runs.csv` 等 |
+| `--fig_dir` / `--detection_fig_dir` | Accuracy / Detection SVG 输出目录 | `figures/online_accuracy` / `figures/online_detections` |
 | `--top_k` | Markdown 每个数据集保留的配置数 | `10` |
 | `--insects_meta` / `--synth_meta_root` | 真值漂移 meta 的路径 | `datasets/real/INSECTS_abrupt_balanced.json` / `data/synthetic` |
 
@@ -441,7 +441,7 @@ python experiments/summarize_online_results.py \
   --datasets sea_abrupt4,sine_abrupt4,stagger_abrupt3,INSECTS_abrupt_balanced \
   --models baseline_student,mean_teacher,ts_drift_adapt \
   --seeds 1 \
-  --fig_dir artifacts/legacy/figures/online_accuracy
+  --fig_dir figures/online_accuracy
 ```
 
 ### experiments/stage1_multi_seed.py
@@ -531,11 +531,11 @@ python experiments/run_real_adaptive.py \
 
 ### experiments/trackF_weighted_threshold_sweep.py
 
-- 作用：Track F 的 weighted 阈值扫描（θ sweep），在 `sea_abrupt4`/`stagger_abrupt3` 上输出逐 run 指标表，并生成 trade-off 曲线图。
+- 作用：Track F 的 weighted 阈值扫描（θ sweep），在 `sea_abrupt4`/`stagger_abrupt3` 上输出逐 run 指标表，并在 `scripts/figures/` 生成 trade-off 曲线图。
 - 输出：
-  - `artifacts/tracks/TRACKF_THRESHOLD_SWEEP.csv`
-  - `artifacts/tracks/figures/trackF_theta_mdr_mtfa.png`
-  - `artifacts/tracks/figures/trackF_theta_acc_final.png`
+  - `scripts/TRACKF_THRESHOLD_SWEEP.csv`
+  - `scripts/figures/trackF_theta_mdr_mtfa.png`
+  - `scripts/figures/trackF_theta_acc_final.png`
 - 示例：
 
 ```bash
@@ -549,7 +549,7 @@ python experiments/trackF_weighted_threshold_sweep.py \
 ### experiments/trackG_two_stage_eval.py
 
 - 作用：Track G 的三组对照：`or` vs `weighted` vs `two_stage(candidate OR → confirm weighted)`，并额外统计 candidate/confirmed 计数与确认延迟。
-- 输出：`artifacts/tracks/TRACKG_TWO_STAGE.csv`
+- 输出：`scripts/TRACKG_TWO_STAGE.csv`
 - 示例：
 
 ```bash
@@ -564,7 +564,7 @@ python experiments/trackG_two_stage_eval.py \
 ### experiments/trackH_severity_gating_insects.py
 
 - 作用：Track H（最小验证）：在 INSECTS（默认 seeds=1/3/5）上对比 v2 vs v2+gate（`confirmed_only`），检验 gating 是否缓解 v2 的负迁移。
-- 输出：`artifacts/tracks/TRACKH_SEVERITY_GATING.csv`
+- 输出：`scripts/TRACKH_SEVERITY_GATING.csv`
 - 示例：
 
 ```bash
@@ -575,7 +575,7 @@ python experiments/trackH_severity_gating_insects.py \
 
 ### scripts/summarize_next_stage.py
 
-- 作用：读取 `artifacts/tracks/TRACKF_THRESHOLD_SWEEP.csv` / `artifacts/tracks/TRACKG_TWO_STAGE.csv`（以及可选的 Track H CSV），自动生成：`artifacts/legacy/reports/NEXT_STAGE_REPORT.md`。
+- 作用：读取 `scripts/TRACKF_THRESHOLD_SWEEP.csv` / `scripts/TRACKG_TWO_STAGE.csv`（以及可选的 Track H CSV），自动生成：`scripts/NEXT_STAGE_REPORT.md`。
 - 示例：
 
 ```bash
@@ -584,7 +584,7 @@ python scripts/summarize_next_stage.py
 
 ### experiments/phase0_offline_supervised.py
 
-- 作用：在真实数据集上离线训练 Tabular MLP 基线，并按 run_id 写入 `artifacts/legacy/results/phase0_offline_supervised/{dataset}/tabular_mlp_baseline/seed{seed}/{run_id}/`。
+- 作用：在真实数据集上离线训练 Tabular MLP 基线，并按 run_id 写入 `results/phase0_offline_supervised/{dataset}/tabular_mlp_baseline/seed{seed}/{run_id}/`。
 - 核心参数：
 
 | 参数 | 说明 | 默认 |
@@ -597,9 +597,9 @@ python scripts/summarize_next_stage.py
 | `--lr_scheduler` | `none` / `cosine` / `step` | `cosine` |
 | `--max_samples` | 每个数据集仅取前 N 条样本（sanity check 用） | 空 |
 | `--run_tag` / `--run_id` | 输出 run_id 的附加标识 / 覆盖值 | 空 |
-| `--results_root` / `--logs_root` | 结果/日志根目录（run_paths 使用） | `artifacts/legacy/results` / `artifacts/legacy/logs` |
+| `--results_root` / `--logs_root` | 结果/日志根目录（run_paths 使用） | `results` / `logs` |
 
-- 输出：每个组合生成 `train.log`、`metrics.csv`、`summary.json`，并在 `artifacts/legacy/results/phase0_offline_supervised/summary/{run_id}/` 写入 `run_level_metrics.csv` + `summary.md`。脚本内部会按 `datasets × seeds` 顺序串行执行。
+- 输出：每个组合生成 `train.log`、`metrics.csv`、`summary.json`，并在 `results/phase0_offline_supervised/summary/{run_id}/` 写入 `run_level_metrics.csv` + `summary.md`。脚本内部会按 `datasets × seeds` 顺序串行执行。
 - 建议先用 `--max_samples 5000 --max_epochs 2` 做 sanity check，确认流程和目录结构正确后再跑全量。
 
 - 示例：

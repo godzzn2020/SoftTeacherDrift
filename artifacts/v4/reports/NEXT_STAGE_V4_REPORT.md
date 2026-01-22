@@ -8,8 +8,8 @@
 - 入口代码：`experiments/trackI_delay_diag.py`、`experiments/trackJ_twostage_sweep.py`、`experiments/trackK_generalization.py`、`experiments/trackL_gating_sweep.py`
 - 关键实现：`drift/detectors.py`、`training/loop.py`、`soft_drift/severity.py`
 - 汇总脚本：`scripts/summarize_next_stage_v4.py`
-- 既有产物（F/G/H）：`artifacts/tracks/TRACKF_THRESHOLD_SWEEP.csv`、`artifacts/tracks/TRACKG_TWO_STAGE.csv`、`artifacts/tracks/TRACKH_SEVERITY_GATING.csv`、`artifacts/legacy/reports/NEXT_STAGE_REPORT.md`
-- 本阶段产物（I/J/K/L）：`artifacts/tracks/TRACKI_DELAY_DIAG.csv`、`artifacts/tracks/TRACKJ_TWOSTAGE_SWEEP.csv`、`artifacts/tracks/TRACKK_GENERALIZATION.csv`、`artifacts/tracks/TRACKL_GATING_SWEEP.csv`
+- 既有产物（F/G/H）：`scripts/TRACKF_THRESHOLD_SWEEP.csv`、`scripts/TRACKG_TWO_STAGE.csv`、`scripts/TRACKH_SEVERITY_GATING.csv`、`scripts/NEXT_STAGE_REPORT.md`
+- 本阶段产物（I/J/K/L）：`scripts/TRACKI_DELAY_DIAG.csv`、`scripts/TRACKJ_TWOSTAGE_SWEEP.csv`、`scripts/TRACKK_GENERALIZATION.csv`、`scripts/TRACKL_GATING_SWEEP.csv`
 
 ## 口径统一（window vs tol500）
 - 时间轴：本报告对合成/INSECTS 的 GT drift 均使用 `sample_idx`（与 meta.json 的 positions 对齐）。

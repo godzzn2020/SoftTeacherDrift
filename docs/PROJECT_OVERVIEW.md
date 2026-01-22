@@ -22,8 +22,8 @@
 
 ## 阶段性离线实验
 
-- **Phase0 — 全监督 Tabular MLP 基线**：`experiments/phase0_offline_supervised.py` + `artifacts/legacy/results/phase0_offline_supervised/`（历史产物归档目录），在固定的 train/val/test 划分上评估 MLP 上限，输出 run-level 与 summary。
-- **Phase1 — 半监督 + EMA Teacher**：`experiments/phase1_offline_tabular_semi_ema.py` + `artifacts/legacy/results/phase1_offline_semisup/`（历史产物归档目录），复用 Phase0 划分，在低标签率（0.05/0.1）下验证 Teacher-Student 机制；教师验证精度用于 early stopping，并记录 teacher/student 的 val/test 指标。
+- **Phase0 — 全监督 Tabular MLP 基线**：`experiments/phase0_offline_supervised.py` + `results/phase0_offline_supervised/`，在固定的 train/val/test 划分上评估 MLP 上限，输出 run-level 与 summary。
+- **Phase1 — 半监督 + EMA Teacher**：`experiments/phase1_offline_tabular_semi_ema.py` + `results/phase1_offline_semisup/`，复用 Phase0 划分，在低标签率（0.05/0.1）下验证 Teacher-Student 机制；教师验证精度用于 early stopping，并记录 teacher/student 的 val/test 指标。
 
 ## 数据与日志约定
 
@@ -31,7 +31,7 @@
 - 合成数据存放在 `data/synthetic/{dataset_name}/`，文件命名为：
   - `{dataset_name}__seed{seed}_data.parquet`：包含时间步 `t`、`concept_id`、`is_drift`、`drift_id`、`y` 及特征列；
   - `{dataset_name}__seed{seed}_meta.json`：记录漂移真值、概念区间、生成器参数等。
-- 训练日志历史产物已归档到 `artifacts/legacy/logs/`；核心字段包括：
+- 训练日志默认写入 `logs/{dataset_name}/{dataset_name}__{model_variant}__seed{seed}.csv`，核心字段包括：
   - `step`, `seen_samples`, `dataset_name`, `dataset_type`, `model_variant`, `seed`
   - 评估：`metric_accuracy`, `metric_kappa`
   - 漂移：`student_error_rate`, `teacher_entropy`, `divergence_js`, `drift_flag`, `monitor_severity`（检测器增量）、`drift_severity_raw`（严重度原值）、`drift_severity`（归一化 0–1 的严重度），`regime`

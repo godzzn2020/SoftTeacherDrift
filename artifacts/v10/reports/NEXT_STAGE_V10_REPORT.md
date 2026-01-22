@@ -8,7 +8,7 @@
 V10-Track AA（必做）：Gradual/Frequent drift 泛化（合成流）
 ================================================
 
-产物：`artifacts/tracks/TRACKAA_GENERALIZATION_NONABRUPT.csv`
+产物：`scripts/TRACKAA_GENERALIZATION_NONABRUPT.csv`
 
 说明：本仓库默认仅内置 abrupt 合成流；Track AA 先用 `data.streams.generate_and_save_synth_stream` 生成 non-abrupt（gradual）版本落盘到临时目录，再在运行期间“临时替换” `data/synthetic/<base_dataset_name>/`，跑完立即恢复原始数据。
 
@@ -39,7 +39,7 @@ V10-Track AA（必做）：Gradual/Frequent drift 泛化（合成流）
 V10-Track AB（必做）：No-drift sanity（误报成本）
 ================================================
 
-产物：`artifacts/tracks/TRACKAB_NODRIFT_SANITY.csv`
+产物：`scripts/TRACKAB_NODRIFT_SANITY.csv`
 
 | dataset | group | n_runs | confirm_rate_per_10k | MTFA_win | acc_final | mean_acc |
 |---|---|---|---|---|---|---|
@@ -55,7 +55,7 @@ V10-Track AB（必做）：No-drift sanity（误报成本）
 V10-Track AC（必做）：INSECTS 恢复窗口稳健性（baseline vs v2）
 ================================================
 
-产物：`artifacts/tracks/TRACKAC_RECOVERY_WINDOW_SWEEP.csv`（由 Track X 的 `log_path/run_id` 精确定位并重算）
+产物：`scripts/TRACKAC_RECOVERY_WINDOW_SWEEP.csv`（由 Track X 的 `log_path/run_id` 精确定位并重算）
 
 | group | n_runs | acc_final | acc_min@2000 | post_min@W500 | post_min@W1000 | post_min@W2000 | post_mean@W500 | post_mean@W1000 | post_mean@W2000 |
 |---|---|---|---|---|---|---|---|---|---|

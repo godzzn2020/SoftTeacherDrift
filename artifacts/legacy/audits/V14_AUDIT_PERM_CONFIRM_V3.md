@@ -4,8 +4,8 @@
 - 复现命令：`source ~/anaconda3/etc/profile.d/conda.sh && conda activate ZZNSTD && python run_v14_audit_perm_confirm_v3.py`
 
 ## 0) 审计范围声明（强约束）
-- 未进行任何全局搜索/扫描（未对 `artifacts/v14/logs/` 做递归查找、未做全仓库 grep/rg）。
-- 逐 run drill-down 仅使用 `artifacts/v14/tables/NEXT_STAGE_V14_RUN_INDEX.csv` 的 `log_path` 定位；只在该 `log_path` 所在目录内按固定顺序尝试 + 最多 1 次局部 glob。
+- 未进行任何全局搜索/扫描（未对 `logs/` 做递归查找、未做全仓库 grep/rg）。
+- 逐 run drill-down 仅使用 `scripts/NEXT_STAGE_V14_RUN_INDEX.csv` 的 `log_path` 定位；只在该 `log_path` 所在目录内按固定顺序尝试 + 最多 1 次局部 glob。
 - 未重跑任何训练/实验（不生成新 runs）。
 
 ## 1) Task A：表格级复核（TRACKAL 聚合口径）
@@ -404,8 +404,9 @@
 ## 5) 白名单文件存在性（缺失标 N/A）
 - scripts/TRACKAL_PERM_CONFIRM_SWEEP.csv：OK
 - scripts/TRACKAM_PERM_DIAG.csv：OK
-- artifacts/v14/tables/NEXT_STAGE_V14_RUN_INDEX.csv：OK
-- artifacts/v14/tables/NEXT_STAGE_V14_METRICS_TABLE.csv：OK
-- artifacts/v14/reports/NEXT_STAGE_V14_REPORT.md：OK
+- scripts/NEXT_STAGE_V14_RUN_INDEX.csv：OK
+- scripts/NEXT_STAGE_V14_METRICS_TABLE.csv：OK
+- scripts/NEXT_STAGE_V14_REPORT.md：OK
 - V14_AUDIT_PERM_CONFIRM.md：N/A
 - V14_AUDIT_PERM_CONFIRM_TABLES.csv：N/A
+

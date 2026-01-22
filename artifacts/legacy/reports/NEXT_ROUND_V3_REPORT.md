@@ -1,8 +1,8 @@
 # NEXT_ROUND V3 Report (Track D/E)
 
 - 生成时间：2026-01-07 14:01:53
-- logs_root：`artifacts/legacy`；results_root：`artifacts/legacy/results`
-- 产物：`artifacts/legacy/reports/NEXT_ROUND_V3_REPORT.md` / `artifacts/legacy/tables/NEXT_ROUND_V3_RUN_INDEX.csv` / `artifacts/legacy/tables/NEXT_ROUND_V3_METRICS_TABLE.csv`
+- logs_root：`logs`；results_root：`results`
+- 产物：`scripts/NEXT_ROUND_V3_REPORT.md` / `scripts/NEXT_ROUND_V3_RUN_INDEX.csv` / `scripts/NEXT_ROUND_V3_METRICS_TABLE.csv`
 
 ## 0) Baseline 机制回顾（必须引用）
 - 多信号 drift monitor 的默认触发为 **OR**：任一 detector 触发即 `drift_flag=1`（现支持 `or/k_of_n/weighted`，默认仍为 OR）。
@@ -61,3 +61,4 @@
 ## 5) 下一步建议
 - 若 v2 在 `acc_min`/恢复指标上稳定提升：建议 sweep `decay∈{0.9,0.95,0.98}` 与 `freeze_baseline_steps∈{0,5,10}`，并对 entropy_mode 做 `overconfident vs uncertain vs abs` 对照。
 - 若 weighted 融合更稳：建议在 `all_signals_ph_meta` 下引入 entropy detector，并把权重/阈值与误报成本绑定（例如阈值从 0.5→0.7）。
+

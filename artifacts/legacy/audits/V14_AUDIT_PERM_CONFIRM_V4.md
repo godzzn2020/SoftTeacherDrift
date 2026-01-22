@@ -5,7 +5,7 @@
 
 ## 0) 审计范围声明（强约束）
 - 未进行任何全局搜索/递归扫描（未使用 find/rg/grep -R/os.walk/glob('**')）。
-- 逐 run 仅使用 `artifacts/v14/tables/NEXT_STAGE_V14_RUN_INDEX.csv` 的 `log_path` 定位；每个 run 的目录：1 次 `listdir` + summary 定位最多 3 次固定路径 +（必要时）1 次局部 `*.summary.json` glob；jsonl 选择仅基于该次 listdir（不额外 glob）。
+- 逐 run 仅使用 `scripts/NEXT_STAGE_V14_RUN_INDEX.csv` 的 `log_path` 定位；每个 run 的目录：1 次 `listdir` + summary 定位最多 3 次固定路径 +（必要时）1 次局部 `*.summary.json` glob；jsonl 选择仅基于该次 listdir（不额外 glob）。
 - 未重跑训练/实验（不生成新 runs）。
 
 ## 1) Task A：复核（写入 V4）
@@ -167,3 +167,4 @@
 - 结论 2（A 为次因，可复核）：同组 `perm_test_count_total` 并不低但仍出现大量 p=1 质量点与 effect 中位数为负/接近 0，说明并非“完全窗口凑不齐”，而是效应不稳定/功效不足叠加（见 `RUN_summary_metrics`）。
 - 结论 3（C 证据不足，必须降权）：定点目录一级内未发现任何 jsonl（`jsonl_chosen` 全空），且 summary 不含 cooldown_active/pending 事件序列，因此无法在本轮允许数据源下证明“pending 被频繁清/重置”。
 - 结论 4（D：口径不一致已证实）：`run_index.dataset=sea_nodrift` 但 `summary.dataset_name=sea_abrupt4` 的不一致在逐 run 层面可复核（见 `RUN_summary_anomalies`），这会直接破坏 drift/no-drift 的逐 run 对齐，应优先修正后再做更细的 A/B/C 统计对照。
+

@@ -6,8 +6,8 @@
 
 ## 结论摘要
 - 统一口径：sea 的“谷底”最终采用 `acc_min@sample_idx>=2000`；`acc_min_raw` 仅作参考。
-- Track Q 产物：`artifacts/tracks/TRACKQ_METRIC_AUDIT.md`
-- Track R 产物：`artifacts/tracks/TRACKR_CONFIRM_DENSITY.csv`
+- Track Q 产物：`scripts/TRACKQ_METRIC_AUDIT.md`
+- Track R 产物：`scripts/TRACKR_CONFIRM_DENSITY.csv`
 
 ========================
 V7-Track Q：口径一致性审计
@@ -105,6 +105,6 @@ V7-Track S：自适应 cooldown
 | fixed_cd200 | 10 | 0.2059±0.0073 | 0.1462±0.0233 | 0.1635±0.0075 | N/A | N/A | N/A | 0.1935 |
 
 ## 回答三问（必须）
-1) acc_min 不一致根因：见 `artifacts/tracks/TRACKQ_METRIC_AUDIT.md`，核心是 `acc_min_raw` 包含 warmup 段且对瞬时下探敏感；最终口径采用 `acc_min@sample_idx>=2000`。
-2) cooldown 是否通过确认密度影响谷底/恢复：见 `artifacts/tracks/TRACKR_CONFIRM_DENSITY.csv` 与上表相关性。
+1) acc_min 不一致根因：见 `scripts/TRACKQ_METRIC_AUDIT.md`，核心是 `acc_min_raw` 包含 warmup 段且对瞬时下探敏感；最终口径采用 `acc_min@sample_idx>=2000`。
+2) cooldown 是否通过确认密度影响谷底/恢复：见 `scripts/TRACKR_CONFIRM_DENSITY.csv` 与上表相关性。
 3) adaptive cooldown 是否兼顾 tol500 与谷底：对比 Track S 的 miss/conf_P90 与 acc_min_warmup/post_min@W1000。

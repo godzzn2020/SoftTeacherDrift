@@ -1,7 +1,7 @@
 # V14 审计（Permutation-test Confirm）
 
 - 生成时间：2026-01-11 15:24:17
-- 输入范围：严格按 prompt 列表仅读取指定 CSV/MD；run drill-down 仅尝试 `artifacts/v14/logs/<run_id>/*.summary.json`。
+- 输入范围：严格按 prompt 列表仅读取指定 CSV/MD；run drill-down 仅尝试 `logs/<run_id>/*.summary.json`。
 
 ## 1) 硬约束复核（表格级）
 - drift 约束：`sea_abrupt4` + `sine_abrupt4` 上 `miss_tol500_mean==0` 且 `conf_P90_mean<500`
@@ -66,7 +66,7 @@
 
 ## 3) 逐 run drill-down（3 组；每组<=2 run_id）
 - 选择组：winner / 最接近硬约束（rank1）/ no-drift 最低
-- 约束：只按 `artifacts/v14/tables/NEXT_STAGE_V14_RUN_INDEX.csv` 取 run_id；只尝试打开 `artifacts/v14/logs/<run_id>/*.summary.json`。
+- 约束：只按 `scripts/NEXT_STAGE_V14_RUN_INDEX.csv` 取 run_id；只尝试打开 `logs/<run_id>/*.summary.json`。
 
 ### group: `A_weighted_n5`
 - run_id：`20260110-195141-kkz_A_weighted_n5`

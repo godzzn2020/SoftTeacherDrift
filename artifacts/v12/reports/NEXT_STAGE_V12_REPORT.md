@@ -8,7 +8,7 @@
 V12-Track AG（必做）：confirm-side sweep（no-drift 约束优化）
 ================================================
 
-产物：`artifacts/tracks/TRACKAG_CONFIRM_SIDE_NODRIFT.csv`
+产物：`scripts/TRACKAG_CONFIRM_SIDE_NODRIFT.csv`
 
 | theta | window | cooldown | sea_miss | sea_confP90 | sine_miss | sine_confP90 | no_drift_rate | no_drift_MTFA | drift_acc_final |
 |---|---|---|---|---|---|---|---|---|---|
@@ -26,7 +26,7 @@ V12-Track AG（必做）：confirm-side sweep（no-drift 约束优化）
 V12-Track AH（必做）：stagger_gradual_frequent 补救（专项小扫）
 ================================================
 
-产物：`artifacts/tracks/TRACKAH_STAGGER_GRADUAL_SENSITIVITY.csv`
+产物：`scripts/TRACKAH_STAGGER_GRADUAL_SENSITIVITY.csv`
 
 | error.threshold | n_runs | miss_start | miss_mid | miss_end | end_delay_P90 | end_delay_P99 |
 |---|---|---|---|---|---|---|

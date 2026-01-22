@@ -4,7 +4,7 @@
 
 ## 1) 目录规范（强制）
 
-- `experiments/`：实验运行脚本（会生成日志/summary.json 与 TrackAL 产物）。
+- `experiments/`：实验运行脚本（会生成 logs/summary.json 与 TrackAL 产物）。
 - `scripts/`：可执行的汇总/分析/工具脚本（summarize/merge/diag 等）；不应放置新产物。
 - `artifacts/`：所有实验产物与日志的归档根目录（按版本分层）。
 - `docs/`：规则、索引与项目说明文档。
@@ -57,5 +57,6 @@
 
 ## 6) 兼容策略（强制）
 
-- 本仓库不保留旧路径下的日志/CSV/报告；一律以 `artifacts/` 为准，避免同名产物在多个目录并存导致审计混乱。
-- 不允许在 `scripts/` 下新增任何“产物文件”（CSV/MD/图片/日志等）；`scripts/` 仅保留可执行脚本。
+- 若移动旧文件，必须保留旧路径兼容（stub 或软链接），确保历史链接不 404。
+- 不允许在 `scripts/` 下新增“产物文件”；`scripts/` 仅保留可执行脚本与必要的指针文件。
+
