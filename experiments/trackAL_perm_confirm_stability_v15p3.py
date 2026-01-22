@@ -41,18 +41,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--logs_root", type=str, default="logs")
     p.add_argument("--log_root_suffix", type=str, default="", help="用于输出隔离；例如 v15p3_s0 -> logs_v15p3_s0")
     p.add_argument("--results_root", type=str, default="results")
-    p.add_argument(
-        "--out_csv",
-        type=str,
-        default="",
-        help="聚合输出 CSV（建议写入 artifacts/ 下；为空则按 version+shard 自动生成）",
-    )
-    p.add_argument(
-        "--out_raw_csv",
-        type=str,
-        default="",
-        help="明细输出 CSV（建议写入 artifacts/ 下；为空则按 version+shard 自动生成）",
-    )
+    p.add_argument("--out_csv", type=str, required=True, help="聚合输出 CSV（每个 shard 不同）")
+    p.add_argument("--out_raw_csv", type=str, required=True, help="明细输出 CSV（每个 shard 不同）")
 
     p.add_argument("--seeds", type=str, default="1,2,3,4,5,6,7,8,9,10")
     p.add_argument("--n_samples", type=int, default=50000)
@@ -269,19 +259,6 @@ def write_csv(path: Path, rows: List[Dict[str, Any]]) -> None:
         w.writerows(rows)
 
 
-def _perm_side_for_group(g: Dict[str, Any]) -> str:
-    # baseline / 非 perm_test：N/A
-    if str(g.get("confirm_rule") or "").lower() != "perm_test":
-        return "N/A"
-    tw = g.get("trigger_weights")
-    if isinstance(tw, dict):
-        side = tw.get("__perm_side") if "__perm_side" in tw else tw.get("perm_side")
-        if side is not None and str(side).strip():
-            return str(side).strip()
-    # perm_test 且未显式提供 side：默认 one_sided_pos（必须与 detector 默认保持一致）
-    return "one_sided_pos"
-
-
 def _safe_float(v: Any) -> Optional[float]:
     if v is None:
         return None
@@ -298,20 +275,8 @@ def main() -> int:
     args = parse_args()
     experiment_name = "trackAL_perm_confirm_stability_v15p3"
     assert "v15p3" in experiment_name.lower()
-    shard_idx = int(args.shard_idx)
-    num_shards = int(args.num_shards)
-    base_out = Path("artifacts/v15p3/tables/TRACKAL_PERM_CONFIRM_STABILITY_V15P3.csv")
-    base_raw = Path("artifacts/v15p3/tables/TRACKAL_PERM_CONFIRM_STABILITY_V15P3_RAW.csv")
-    out_csv = (
-        Path(str(args.out_csv)).resolve()
-        if str(args.out_csv).strip()
-        else (base_out.with_name(f"{base_out.stem}_shard{shard_idx}{base_out.suffix}") if num_shards > 1 else base_out)
-    )
-    out_raw_csv = (
-        Path(str(args.out_raw_csv)).resolve()
-        if str(args.out_raw_csv).strip()
-        else (base_raw.with_name(f"{base_raw.stem}_shard{shard_idx}{base_raw.suffix}") if num_shards > 1 else base_raw)
-    )
+    out_csv = Path(args.out_csv)
+    out_raw_csv = Path(args.out_raw_csv)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     out_raw_csv.parent.mkdir(parents=True, exist_ok=True)
 
@@ -320,6 +285,8 @@ def main() -> int:
     if suffix:
         logs_root = Path(f"{logs_root}_{suffix}")
 
+    num_shards = int(args.num_shards)
+    shard_idx = int(args.shard_idx)
     if num_shards < 1:
         raise ValueError("--num_shards 必须 >= 1")
     if shard_idx < 0 or shard_idx >= num_shards:
@@ -491,7 +458,6 @@ def main() -> int:
                     "perm_pre_n": str(g["perm_pre_n"]),
                     "perm_post_n": str(g["perm_post_n"]),
                     "perm_n_perm": str(g["perm_n_perm"]),
-                    "perm_side": _perm_side_for_group(g),
                     "delta_k": str(g["delta_k"]),
                     "acc_final": _safe_float(summ.get("acc_final")),
                 }
@@ -538,7 +504,6 @@ def main() -> int:
                 "perm_pre_n": str(g["perm_pre_n"]),
                 "perm_post_n": str(g["perm_post_n"]),
                 "perm_n_perm": str(g["perm_n_perm"]),
-                "perm_side": _perm_side_for_group(g),
                 "weights": str(args.weights),
                 "horizon_mean": mean([_safe_float(r.get("horizon")) for r in per_seed_records]),
                 "acc_final_mean": mean([_safe_float(r.get("acc_final")) for r in per_seed_records]),
