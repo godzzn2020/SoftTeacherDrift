@@ -143,8 +143,11 @@ def pick_winner(trackal_rows: List[Dict[str, str]], acc_tol: float) -> Tuple[Opt
     return eligible2[0], None
 
 
-def read_summary(log_path: Path) -> Dict[str, Any]:
+def read_summary(log_path: Path) -> Optional[Dict[str, Any]]:
     sp = log_path.with_suffix(".summary.json")
+    if not sp.exists():
+        print(f"[warn] summary missing: {sp}")
+        return None
     return json.loads(sp.read_text(encoding="utf-8"))
 
 
@@ -159,12 +162,13 @@ def main() -> int:
         print(f"[warn] empty: {trackal_path}")
         return 0
 
-    trackal_hint = (trackal_path.name or "").upper()
-    if "V15P3" not in trackal_hint and "V15.3" not in trackal_hint:
+    name_u = (trackal_path.name or "").upper()
+    if ("V15P3" not in name_u) and ("V15.3" not in name_u):
         # 仅提示，不 hard fail：兼容旧用法/旧文件名
         print(f"[warn] trackal_csv 可能不是 V15P3 产物：{trackal_path}")
 
     datasets = [d.strip() for d in str(args.datasets).split(",") if d.strip()]
+    present_datasets = sorted({str(r.get("dataset") or "").strip() for r in rows if r.get("dataset")})
 
     groups: List[str] = []
     if str(args.groups).strip():
@@ -197,10 +201,41 @@ def main() -> int:
             by_gd.setdefault((g, d), r)
 
     out_rows: List[Dict[str, Any]] = []
+    total_missing = 0
+    warned_old = False
     for g in groups:
         for d in datasets:
             r = by_gd.get((g, d))
             if not r:
+                if d not in present_datasets:
+                    print(f"[warn] dataset {d} not found in trackal_csv; present={present_datasets}")
+                    out_rows.append(
+                        {
+                            "track": "AM",
+                            "dataset": d,
+                            "group": g,
+                            "phase": "",
+                            "confirm_rule": "",
+                            "perm_stat": "",
+                            "delta_k": "",
+                            "perm_alpha": "",
+                            "perm_pre_n": "",
+                            "perm_post_n": "",
+                            "perm_n_perm": "",
+                            "n_runs": 0,
+                            "missing_trackal": 1,
+                            "missing_summary": 0,
+                            "candidate_count_mean": "",
+                            "candidate_count_std": "",
+                            "confirmed_count_mean": "",
+                            "confirmed_count_std": "",
+                            "confirmed_over_candidate_mean": "",
+                            "perm_pvalue_p50_mean": "",
+                            "perm_pvalue_p90_mean": "",
+                            "perm_pvalue_p99_mean": "",
+                            "perm_pvalue_le_alpha_ratio_mean": "",
+                        }
+                    )
                 continue
             run_index_json = r.get("run_index_json") or "{}"
             try:
@@ -213,6 +248,7 @@ def main() -> int:
             if not isinstance(runs, list):
                 continue
 
+            missing_summary = 0
             cand_counts: List[Optional[float]] = []
             conf_counts: List[Optional[float]] = []
             ratios: List[Optional[float]] = []
@@ -226,7 +262,14 @@ def main() -> int:
                     log_path = Path(str(item.get("log_path")))
                 except Exception:
                     continue
+                if "trackAL_perm_confirm_stability_v15p2" in str(log_path) and not warned_old:
+                    warned_old = True
+                    print(f"[warn] log_path 指向 v15p2 产物：{log_path}")
                 summ = read_summary(log_path)
+                if summ is None:
+                    missing_summary += 1
+                    total_missing += 1
+                    continue
                 ccand = _safe_float(summ.get("candidate_count_total"))
                 cconf = _safe_float(summ.get("confirmed_count_total"))
                 cand_counts.append(ccand)
@@ -239,6 +282,40 @@ def main() -> int:
                 p90s.append(_safe_float(summ.get("perm_pvalue_p90")))
                 p99s.append(_safe_float(summ.get("perm_pvalue_p99")))
                 le_alpha.append(_safe_float(summ.get("perm_pvalue_le_alpha_ratio")))
+
+            n_present = int(len(cand_counts))
+            cand_vals = [x for x in cand_counts if x is not None]
+            conf_vals = [x for x in conf_counts if x is not None]
+            ratio_vals = [x for x in ratios if x is not None]
+            p50_vals = [x for x in p50s if x is not None]
+            p90_vals = [x for x in p90s if x is not None]
+            p99_vals = [x for x in p99s if x is not None]
+            le_alpha_vals = [x for x in le_alpha if x is not None]
+            stats: Dict[str, Any]
+            if n_present == 0:
+                stats = {
+                    "candidate_count_mean": "",
+                    "candidate_count_std": "",
+                    "confirmed_count_mean": "",
+                    "confirmed_count_std": "",
+                    "confirmed_over_candidate_mean": "",
+                    "perm_pvalue_p50_mean": "",
+                    "perm_pvalue_p90_mean": "",
+                    "perm_pvalue_p99_mean": "",
+                    "perm_pvalue_le_alpha_ratio_mean": "",
+                }
+            else:
+                stats = {
+                    "candidate_count_mean": mean(cand_vals) if cand_vals else "",
+                    "candidate_count_std": std(cand_vals) if len(cand_vals) > 1 else "",
+                    "confirmed_count_mean": mean(conf_vals) if conf_vals else "",
+                    "confirmed_count_std": std(conf_vals) if len(conf_vals) > 1 else "",
+                    "confirmed_over_candidate_mean": mean(ratio_vals) if ratio_vals else "",
+                    "perm_pvalue_p50_mean": mean(p50_vals) if p50_vals else "",
+                    "perm_pvalue_p90_mean": mean(p90_vals) if p90_vals else "",
+                    "perm_pvalue_p99_mean": mean(p99_vals) if p99_vals else "",
+                    "perm_pvalue_le_alpha_ratio_mean": mean(le_alpha_vals) if le_alpha_vals else "",
+                }
 
             out_rows.append(
                 {
@@ -254,21 +331,17 @@ def main() -> int:
                     "perm_post_n": str(r.get("perm_post_n") or ""),
                     "perm_n_perm": str(r.get("perm_n_perm") or ""),
                     "n_runs": int(len(runs)),
-                    "candidate_count_mean": mean(cand_counts),
-                    "candidate_count_std": std(cand_counts),
-                    "confirmed_count_mean": mean(conf_counts),
-                    "confirmed_count_std": std(conf_counts),
-                    "confirmed_over_candidate_mean": mean(ratios),
-                    "perm_pvalue_p50_mean": mean(p50s),
-                    "perm_pvalue_p90_mean": mean(p90s),
-                    "perm_pvalue_p99_mean": mean(p99s),
-                    "perm_pvalue_le_alpha_ratio_mean": mean(le_alpha),
+                    "missing_trackal": 0,
+                    "missing_summary": int(missing_summary),
+                    **stats,
                 }
             )
 
     if not out_rows:
         print("[warn] no diag rows")
         return 0
+    if total_missing > 0:
+        print(f"[warn] skipped {total_missing} run summaries due to missing summary")
 
     fieldnames: List[str] = []
     seen: set[str] = set()
