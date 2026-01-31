@@ -22,12 +22,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Summarize NEXT_STAGE V15 (Permutation-test Confirm + vote_score)")
-    p.add_argument("--trackal_csv", type=str, default="scripts/TRACKAL_PERM_CONFIRM_SWEEP_V15.csv")
-    p.add_argument("--trackam_csv", type=str, default="scripts/TRACKAM_PERM_DIAG_V15.csv")
-    p.add_argument("--out_report", type=str, default="scripts/NEXT_STAGE_V15_REPORT.md")
-    p.add_argument("--out_report_full", type=str, default="scripts/NEXT_STAGE_V15_REPORT_FULL.md")
-    p.add_argument("--out_run_index", type=str, default="scripts/NEXT_STAGE_V15_RUN_INDEX.csv")
-    p.add_argument("--out_metrics_table", type=str, default="scripts/NEXT_STAGE_V15_METRICS_TABLE.csv")
+    p.add_argument("--trackal_csv", type=str, default="artifacts/v15/tables/TRACKAL_PERM_CONFIRM_SWEEP_V15.csv")
+    p.add_argument("--trackam_csv", type=str, default="artifacts/v15/tables/TRACKAM_PERM_DIAG_V15.csv")
+    p.add_argument("--out_report", type=str, default="artifacts/v15/reports/NEXT_STAGE_V15_REPORT.md")
+    p.add_argument("--out_report_full", type=str, default="artifacts/v15/reports/NEXT_STAGE_V15_REPORT_FULL.md")
+    p.add_argument("--out_run_index", type=str, default="artifacts/v15/tables/NEXT_STAGE_V15_RUN_INDEX.csv")
+    p.add_argument("--out_metrics_table", type=str, default="artifacts/v15/tables/NEXT_STAGE_V15_METRICS_TABLE.csv")
     p.add_argument("--acc_tolerance", type=float, default=0.01)
     p.add_argument("--topk", type=int, default=20, help="主报告顶部 Top-K hard-ok 表行数")
     p.add_argument(
@@ -291,6 +291,7 @@ def _build_slim_report(
                 meta(g, "perm_alpha"),
                 meta(g, "perm_pre_n"),
                 meta(g, "perm_post_n"),
+                (meta(g, "perm_side") or "N/A"),
                 "True" if pass_guardrail.get(g, False) else "False",
                 _fmt(_safe_float(sea.get("miss_tol500_mean")), 3),
                 _fmt(_safe_float(sine.get("miss_tol500_mean")), 3),
@@ -419,6 +420,7 @@ def _build_slim_report(
         "perm_alpha",
         "perm_pre_n",
         "perm_post_n",
+        "perm_side",
         "pass_guardrail",
         "sea_miss",
         "sine_miss",
@@ -439,6 +441,11 @@ def _build_slim_report(
 
 def main() -> int:
     args = parse_args()
+    for p in (args.out_report, args.out_report_full, args.out_run_index, args.out_metrics_table):
+        try:
+            Path(str(p)).parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
     v14_summarizer = Path(__file__).resolve().parent / "summarize_next_stage_v14.py"
     if not v14_summarizer.exists():
         print(f"[error] missing: {v14_summarizer}", file=sys.stderr)
