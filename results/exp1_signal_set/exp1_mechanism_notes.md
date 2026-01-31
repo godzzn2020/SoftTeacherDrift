@@ -1,0 +1,7 @@
+- G1(candidate) 均值接近 0（candidate_mean≈0.1），confirmed 也接近 0，说明 proxy 信号未进入有效触发区间。
+- 在 lr=0.01：G2 hard-ok=0.5 低于 G0=0.7，且 worst-seed 回退为正（1.3）。
+- confirmed≈candidate−1、not_tested≈1、reject≈0：confirm 端统计检验不是主要差异来源，candidate 分布变化更关键。
+- G1 在全部 labelled_ratio 下 hard-ok 为 0，属于“触发不足”而非“误报爆炸”。
+- G2 在 lr=0.05/0.2 与 G0 hard-ok 持平，但 worst-seed 回退为正，提示融合后稳定性波动。
+- lr=1.0 时 G2 hard-ok 高于 G0，但 no-drift 仍未显著优于 G0，说明 proxy 贡献主要体现在 drift 侧。
+- 结论：需先校准 proxy detector 触发区间，再考虑融合策略，否则 G2 在低标签下可能引入不稳。

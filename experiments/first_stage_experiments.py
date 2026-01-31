@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import sys
 from pathlib import Path
@@ -43,6 +43,35 @@ def _format_trigger_weights(weights: Optional[Dict[str, Any]]) -> str:
     return ",".join(parts)
 
 
+_SIGNAL_SET_PRESET_MAP: Dict[str, str] = {
+    "error": "error_ph_meta",
+    "proxy": "entropy_divergence_ph_meta",
+    "all": "all_signals_ph_meta",
+}
+
+
+def _normalize_signal_set(signal_set: Optional[str]) -> Optional[str]:
+    if signal_set is None:
+        return None
+    value = str(signal_set).strip().lower()
+    if not value:
+        return None
+    return value if value in _SIGNAL_SET_PRESET_MAP else None
+
+
+def _apply_signal_set_to_preset(monitor_preset: str, signal_set: Optional[str]) -> str:
+    normalized = _normalize_signal_set(signal_set)
+    if not normalized:
+        return monitor_preset
+    preset = str(monitor_preset or "").strip()
+    spec = ""
+    if "@" in preset:
+        _, spec = preset.split("@", 1)
+        spec = spec.strip()
+    target = _SIGNAL_SET_PRESET_MAP[normalized]
+    return f"{target}@{spec}" if spec else target
+
+
 @dataclass
 class ExperimentConfig:
     """单次实验的高层配置。"""
@@ -65,6 +94,7 @@ class ExperimentConfig:
     stream_kwargs: Dict[str, Any] = field(default_factory=dict)
     log_path: Optional[str] = None
     monitor_preset: str = "none"
+    signal_set: Optional[str] = None
     trigger_mode: str = "or"
     trigger_k: int = 2
     trigger_threshold: float = 0.5
@@ -77,6 +107,47 @@ class ExperimentConfig:
     entropy_mode: str = "overconfident"
     severity_decay: float = 0.95
     freeze_baseline_steps: int = 0
+    ema_decay_mode: str = "none"
+    ema_gamma_min: float = 0.95
+    ema_gamma_max: float = 0.999
+    ema_gamma_fixed: Optional[float] = None
+    ema_severity_mode: str = "max"
+    ema_severity_weights: Optional[Tuple[float, float, float]] = None
+    ema_severity_smoothing: float = 0.9
+    ema_severity_threshold: float = 0.6
+    ema_severity_threshold_off: Optional[float] = None
+    ema_cooldown_steps: int = 200
+    ema_use_candidate: bool = False
+    ema_use_drift_flag: bool = False
+    loss_scheduler_mode: str = "none"
+    loss_lambda_min: Optional[float] = None
+    loss_lambda_max: Optional[float] = None
+    loss_tau_min: Optional[float] = None
+    loss_tau_max: Optional[float] = None
+    loss_lambda_fixed: Optional[float] = None
+    loss_tau_fixed: Optional[float] = None
+    loss_severity_mode: str = "max"
+    loss_severity_weights: Optional[Tuple[float, float, float]] = None
+    loss_severity_momentum: float = 0.99
+    loss_severity_smoothing: float = 0.9
+    loss_severity_low: float = 0.0
+    loss_severity_high: float = 2.0
+    loss_severity_eps: float = 1e-6
+    loss_severity_use_error: bool = False
+    loss_event_on: float = 0.6
+    loss_event_off: float = 0.4
+    loss_cooldown_steps: int = 200
+    loss_use_candidate: bool = False
+    loss_use_drift_flag: bool = False
+    loss_apply_lambda: bool = True
+    loss_apply_tau: bool = True
+    loss_safety_enabled: bool = False
+    loss_safety_use_candidate: bool = True
+    loss_safety_use_severity: bool = False
+    loss_safety_severity_threshold: float = 0.6
+    loss_safety_cooldown_steps: int = 200
+    loss_safety_tau: Optional[float] = None
+    loss_safety_lambda: Optional[float] = None
 
 
 def run_experiment(config: ExperimentConfig, device: str = "cpu") -> pd.DataFrame:
@@ -84,6 +155,10 @@ def run_experiment(config: ExperimentConfig, device: str = "cpu") -> pd.DataFram
     构建数据流、模型与监控组件，运行在线训练，并返回日志 DataFrame。
     同时依据 config.log_path 写入 CSV（若提供）。
     """
+    signal_set = _normalize_signal_set(getattr(config, "signal_set", None))
+    monitor_preset = _apply_signal_set_to_preset(config.monitor_preset, signal_set)
+    if monitor_preset != config.monitor_preset or signal_set != getattr(config, "signal_set", None):
+        config = replace(config, monitor_preset=monitor_preset, signal_set=signal_set)
 
     stream_info = streams.build_stream(
         dataset_type=config.dataset_type,
@@ -139,6 +214,7 @@ def run_experiment(config: ExperimentConfig, device: str = "cpu") -> pd.DataFram
         model_variant=config.model_variant,
         seed=config.seed,
         monitor_preset=config.monitor_preset,
+        signal_set=config.signal_set,
         trigger_mode=config.trigger_mode,
         trigger_k=config.trigger_k,
         trigger_threshold=config.trigger_threshold,
@@ -152,6 +228,47 @@ def run_experiment(config: ExperimentConfig, device: str = "cpu") -> pd.DataFram
         severity_decay=float(config.severity_decay),
         freeze_baseline_steps=int(config.freeze_baseline_steps),
         severity_scheduler_scale=config.severity_scheduler_scale,
+        ema_decay_mode=str(config.ema_decay_mode),
+        ema_gamma_min=float(config.ema_gamma_min),
+        ema_gamma_max=float(config.ema_gamma_max),
+        ema_gamma_fixed=float(config.ema_gamma_fixed) if config.ema_gamma_fixed is not None else None,
+        ema_severity_mode=str(config.ema_severity_mode),
+        ema_severity_weights=config.ema_severity_weights,
+        ema_severity_smoothing=float(config.ema_severity_smoothing),
+        ema_severity_threshold=float(config.ema_severity_threshold),
+        ema_severity_threshold_off=float(config.ema_severity_threshold_off) if config.ema_severity_threshold_off is not None else None,
+        ema_cooldown_steps=int(config.ema_cooldown_steps),
+        ema_use_candidate=bool(config.ema_use_candidate),
+        ema_use_drift_flag=bool(config.ema_use_drift_flag),
+        loss_scheduler_mode=str(config.loss_scheduler_mode),
+        loss_lambda_min=config.loss_lambda_min,
+        loss_lambda_max=config.loss_lambda_max,
+        loss_tau_min=config.loss_tau_min,
+        loss_tau_max=config.loss_tau_max,
+        loss_lambda_fixed=config.loss_lambda_fixed,
+        loss_tau_fixed=config.loss_tau_fixed,
+        loss_severity_mode=str(config.loss_severity_mode),
+        loss_severity_weights=config.loss_severity_weights,
+        loss_severity_momentum=float(config.loss_severity_momentum),
+        loss_severity_smoothing=float(config.loss_severity_smoothing),
+        loss_severity_low=float(config.loss_severity_low),
+        loss_severity_high=float(config.loss_severity_high),
+        loss_severity_eps=float(config.loss_severity_eps),
+        loss_severity_use_error=bool(config.loss_severity_use_error),
+        loss_event_on=float(config.loss_event_on),
+        loss_event_off=float(config.loss_event_off),
+        loss_cooldown_steps=int(config.loss_cooldown_steps),
+        loss_use_candidate=bool(config.loss_use_candidate),
+        loss_use_drift_flag=bool(config.loss_use_drift_flag),
+        loss_apply_lambda=bool(config.loss_apply_lambda),
+        loss_apply_tau=bool(config.loss_apply_tau),
+        loss_safety_enabled=bool(config.loss_safety_enabled),
+        loss_safety_use_candidate=bool(config.loss_safety_use_candidate),
+        loss_safety_use_severity=bool(config.loss_safety_use_severity),
+        loss_safety_severity_threshold=float(config.loss_safety_severity_threshold),
+        loss_safety_cooldown_steps=int(config.loss_safety_cooldown_steps),
+        loss_safety_tau=config.loss_safety_tau,
+        loss_safety_lambda=config.loss_safety_lambda,
     )
     logs_df = run_training_loop(
         batch_iter=batch_iter,
@@ -193,8 +310,26 @@ def main() -> None:
         "--monitor_preset",
         type=str,
         default="none",
-        choices=["none", "error_ph_meta", "divergence_ph_meta", "error_divergence_ph_meta"],
+        choices=[
+            "none",
+            "error_ph_meta",
+            "error_only_ph_meta",
+            "entropy_only_ph_meta",
+            "divergence_ph_meta",
+            "divergence_only_ph_meta",
+            "error_entropy_ph_meta",
+            "error_divergence_ph_meta",
+            "entropy_divergence_ph_meta",
+            "all_signals_ph_meta",
+        ],
         help="漂移检测器预设（none 表示不启用）",
+    )
+    parser.add_argument(
+        "--signal_set",
+        type=str,
+        default=None,
+        choices=["error", "proxy", "all"],
+        help="信号组合（可选）：error=仅监督，proxy=entropy+divergence，all=三者；为空则沿用 monitor_preset",
     )
     parser.add_argument("--results_root", type=str, default="results", help="结果输出根目录")
     parser.add_argument("--logs_root", type=str, default="logs", help="日志输出根目录")
@@ -234,6 +369,7 @@ def main() -> None:
                 seed=args.seed,
                 log_path=str(log_path),
                 monitor_preset=args.monitor_preset,
+                signal_set=args.signal_set,
             )
             logs = run_experiment(cfg, device=args.device)
             final_acc = logs["metric_accuracy"].iloc[-1] if not logs.empty else float("nan")

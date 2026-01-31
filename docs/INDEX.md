@@ -8,6 +8,7 @@
 - [教师–学生模型](modules/teacher_student.md) — `models/teacher_student.py`
 - [漂移信号与超参调度](modules/drift_and_scheduler.md) — `drift/*`, `scheduler/*`
 - [训练循环与日志](modules/training_loop.md) — `training/loop.py`, `run_experiment.py`
+- [工程架构与创新点（main / V15.3）](modules/std_architecture_v15_3.md) — two_stage + perm_test + vote_score + TrackAL/AM 产物链
 - [Stage1 实验设置](modules/experiments_stage1.md) — `experiments/first_stage_experiments.py`
 - [漂移评估指标](modules/evaluation_metrics.md) — `evaluation/` 目录
 - [测试脚本与常用命令](modules/test_scripts.md) — 训练/评估脚本 CLI 参数与示例

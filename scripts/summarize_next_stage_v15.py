@@ -24,14 +24,15 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Summarize NEXT_STAGE V15 (Permutation-test Confirm + vote_score)")
     p.add_argument("--trackal_csv", type=str, default="artifacts/v15/tables/TRACKAL_PERM_CONFIRM_SWEEP_V15.csv")
     p.add_argument("--trackam_csv", type=str, default="artifacts/v15/tables/TRACKAM_PERM_DIAG_V15.csv")
-    p.add_argument("--out_report", type=str, default="artifacts/v15/reports/NEXT_STAGE_V15_REPORT.md")
-    p.add_argument("--out_report_full", type=str, default="artifacts/v15/reports/NEXT_STAGE_V15_REPORT_FULL.md")
+    p.add_argument("--out_report", "--out_md", type=str, default="artifacts/v15/reports/NEXT_STAGE_V15_REPORT.md")
+    p.add_argument("--out_report_full", "--out_full_md", type=str, default="artifacts/v15/reports/NEXT_STAGE_V15_REPORT_FULL.md")
     p.add_argument("--out_run_index", type=str, default="artifacts/v15/tables/NEXT_STAGE_V15_RUN_INDEX.csv")
     p.add_argument("--out_metrics_table", type=str, default="artifacts/v15/tables/NEXT_STAGE_V15_METRICS_TABLE.csv")
     p.add_argument("--acc_tolerance", type=float, default=0.01)
     p.add_argument("--topk", type=int, default=20, help="主报告顶部 Top-K hard-ok 表行数")
     p.add_argument(
         "--raw_csv",
+        "--trackal_raw_csv",
         type=str,
         default="",
         help="可选：稳定性复核的逐 seed 明细 CSV（用于在报告顶部输出均值/方差/最差 case）",
@@ -61,6 +62,99 @@ def _read_csv(path: Path) -> List[Dict[str, str]]:
         return []
     with path.open("r", encoding="utf-8") as f:
         return list(csv.DictReader(f))
+
+
+def _collect_candidate_csv_paths(missing_path: Path) -> List[Path]:
+    # NOTE: 只做提示（不自动替换用户输入路径）。
+    # 目标：用户常在 scripts/ 与 artifacts/*/tables 之间切换，给出可行动的候选列表。
+    try:
+        repo_root = Path(__file__).resolve().parents[1]
+    except Exception:
+        repo_root = Path.cwd()
+
+    scripts_dir = repo_root / "scripts"
+    artifacts_dir = repo_root / "artifacts"
+    name = str(missing_path.name or "").strip()
+
+    # glob 候选（仅收集“存在且非空”的 CSV）
+    found: List[Path] = []
+    try:
+        found.extend([p for p in artifacts_dir.glob("**/tables/*.csv") if p.is_file() and p.stat().st_size > 0])
+    except Exception:
+        pass
+    try:
+        found.extend([p for p in repo_root.glob("**/TRACKAL_PERM_CONFIRM_STABILITY*.csv") if p.is_file() and p.stat().st_size > 0])
+    except Exception:
+        pass
+    try:
+        found.extend([p for p in scripts_dir.glob("**/*.csv") if p.is_file() and p.stat().st_size > 0])
+    except Exception:
+        pass
+    if name:
+        try:
+            found.extend([p for p in repo_root.glob(f"**/{name}") if p.is_file() and p.suffix.lower() == ".csv" and p.stat().st_size > 0])
+        except Exception:
+            pass
+
+    # 优先把同名候选排前；否则按 token 相关性排序
+    tokens = {t.upper() for t in re.findall(r"[A-Za-z0-9]+", name) if len(t) >= 3} if name else set()
+
+    def score(p: Path) -> Tuple[int, str]:
+        pn = p.name
+        if name and pn == name:
+            return 0, str(p)
+        if name and name in pn:
+            return 1, str(p)
+        up = pn.upper()
+        if tokens and any(t in up for t in tokens):
+            return 2, str(p)
+        return 3, str(p)
+
+    uniq: Dict[str, Path] = {}
+    for p in found:
+        uniq[str(p)] = p
+    out = list(uniq.values())
+    out.sort(key=score)
+    return out
+
+
+def _print_missing_hint(path: Path) -> None:
+    print(f"[error] missing or empty: {path}", file=sys.stderr)
+    candidates = _collect_candidate_csv_paths(path)
+    print("[hint] candidate existing CSV paths (NOT auto-selected):", file=sys.stderr)
+    shown = candidates[:10]
+    for p in shown:
+        print(f"  - {p}", file=sys.stderr)
+    if len(candidates) > len(shown):
+        print(f"  ...(+{len(candidates) - len(shown)} more)", file=sys.stderr)
+
+
+def _has_csv_rows(path: Path) -> bool:
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row is not None:
+                    return True
+    except Exception:
+        return False
+    return False
+
+
+def _ensure_csv(path: Path) -> None:
+    if not path.exists() or not path.is_file():
+        _print_missing_hint(path)
+        raise FileNotFoundError(f"空或缺失：{path}")
+    try:
+        if path.stat().st_size == 0:
+            _print_missing_hint(path)
+            raise FileNotFoundError(f"空或缺失：{path}")
+    except Exception:
+        _print_missing_hint(path)
+        raise FileNotFoundError(f"空或缺失：{path}")
+    if not _has_csv_rows(path):
+        _print_missing_hint(path)
+        raise FileNotFoundError(f"空或缺失：{path}")
 
 
 def _pick_best_phase(rows: List[Dict[str, str]]) -> Dict[Tuple[str, str], Dict[str, str]]:
@@ -233,6 +327,7 @@ def _build_slim_report(
 ) -> None:
     rows = _read_csv(trackal_csv)
     if not rows:
+        _print_missing_hint(trackal_csv)
         raise FileNotFoundError(f"空或缺失：{trackal_csv}")
 
     best = _pick_best_phase(rows)
@@ -446,6 +541,13 @@ def main() -> int:
             Path(str(p)).parent.mkdir(parents=True, exist_ok=True)
         except Exception:
             pass
+    trackal_csv = Path(str(args.trackal_csv))
+    trackam_csv = Path(str(args.trackam_csv))
+    _ensure_csv(trackal_csv)
+    _ensure_csv(trackam_csv)
+    raw_csv = Path(str(args.raw_csv)) if str(args.raw_csv).strip() else None
+    if raw_csv is not None:
+        _ensure_csv(raw_csv)
     v14_summarizer = Path(__file__).resolve().parent / "summarize_next_stage_v14.py"
     if not v14_summarizer.exists():
         print(f"[error] missing: {v14_summarizer}", file=sys.stderr)
@@ -481,12 +583,12 @@ def main() -> int:
         out_full.write_text(full_text, encoding="utf-8")
 
     _build_slim_report(
-        trackal_csv=Path(args.trackal_csv),
-        trackam_csv=Path(args.trackam_csv),
+        trackal_csv=trackal_csv,
+        trackam_csv=trackam_csv,
         out_report=Path(args.out_report),
         out_report_full=Path(args.out_report_full),
         topk=int(args.topk),
-        raw_csv=Path(str(args.raw_csv)).resolve() if str(args.raw_csv).strip() else None,
+        raw_csv=raw_csv.resolve() if raw_csv is not None else None,
     )
     return 0
 

@@ -58,6 +58,13 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="error_divergence_ph_meta@error.threshold=0.10,error.min_instances=5",
     )
+    p.add_argument(
+        "--signal_set",
+        type=str,
+        default=None,
+        choices=["error", "proxy", "all"],
+        help="信号组合（可选）：error=仅监督，proxy=entropy+divergence，all=三者；为空则沿用 monitor_preset",
+    )
     p.add_argument("--weights", type=str, default="error_rate=0.5,divergence=0.3,teacher_entropy=0.2")
     p.add_argument("--confirm_theta", type=float, default=0.50)
     p.add_argument("--confirm_window", type=int, default=3)
@@ -205,6 +212,7 @@ def ensure_log(
     base_cfg: ExperimentConfig,
     *,
     monitor_preset: str,
+    signal_set: Optional[str],
     confirm_theta: float,
     confirm_window: int,
     confirm_cooldown: int,
@@ -230,6 +238,7 @@ def ensure_log(
         seed=int(seed),
         log_path=str(log_path),
         monitor_preset=str(monitor_preset),
+        signal_set=signal_set,
         trigger_mode="two_stage",
         trigger_weights=tw,
         trigger_threshold=float(confirm_theta),
@@ -427,6 +436,7 @@ def main() -> int:
                     seed=int(seed),
                     base_cfg=base_cfg,
                     monitor_preset=str(args.monitor_preset),
+                    signal_set=args.signal_set,
                     confirm_theta=float(args.confirm_theta),
                     confirm_window=int(args.confirm_window),
                     confirm_cooldown=int(args.confirm_cooldown),
@@ -435,6 +445,7 @@ def main() -> int:
                     device=str(args.device),
                 )
                 summ = read_run_summary(log_path)
+                signal_set_val = summ.get("signal_set") or (args.signal_set or "")
                 horizon = int(summ.get("horizon") or n_samples)
                 confirmed_raw = [int(x) for x in (summ.get("confirmed_sample_idxs") or [])]
                 confirmed = merge_events(confirmed_raw, min_sep)
@@ -452,6 +463,7 @@ def main() -> int:
                     "run_id": str(run_id),
                     "log_path": str(log_path),
                     "horizon": int(horizon),
+                    "signal_set": signal_set_val,
                     "confirm_rule": str(g["confirm_rule"]),
                     "perm_stat": str(g["perm_stat"]),
                     "perm_alpha": str(g["perm_alpha"]),
@@ -494,6 +506,7 @@ def main() -> int:
                 "n_runs": int(len(seeds)),
                 "group": str(g["group"]),
                 "monitor_preset": str(args.monitor_preset),
+                "signal_set": per_seed_records[0].get("signal_set") if per_seed_records else (args.signal_set or ""),
                 "confirm_theta": float(args.confirm_theta),
                 "confirm_window": int(args.confirm_window),
                 "confirm_cooldown": int(args.confirm_cooldown),

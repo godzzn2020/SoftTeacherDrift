@@ -22,20 +22,33 @@
       - 建议默认权重：`error_rate=0.5, divergence=0.3, teacher_entropy=0.2`；阈值可从 `0.5` 起调（更大更保守）。
     - `two_stage`：两阶段触发（candidate→confirm）
       - candidate：使用 OR（任一 detector 触发即候选）；
-      - confirm：候选触发后在 `confirm_window` 步内，若 `vote_score >= threshold` 则确认；
+      - confirm：候选触发后在 `confirm_window`（单位：step/batch）内尝试确认；确认成功后才置 `drift_flag=1`。
+      - confirm_cooldown（可选）：确认冷却（单位：`sample_idx`；若未提供 `sample_idx` 则退化为 step）。冷却期内不允许新的 confirm，并清空 pending，避免“过期后补确认”造成不必要的晚检。
+        - 通过 `trigger_weights` 透传：`__confirm_cooldown=<int>`（见 `training/loop.py:run_training_loop` 的注入逻辑）。
       - confirm_rule：通过 confirm 侧规则控制确认行为（默认 weighted）；也可启用 `perm_test`（置换检验 confirm）。
         - `weighted`：沿用原逻辑（`vote_score >= threshold` 立即确认）。
         - `perm_test`：在 confirm 阶段比较 candidate 前后窗口的统计量（连续值）差异是否显著；no-drift 下通常不显著→拒绝确认。
-          - 通过 `trigger_weights` 透传：`__confirm_rule=perm_test`，并可配置 `__perm_pre_n/__perm_post_n/__perm_n_perm/__perm_alpha/__perm_stat/__perm_min_effect/__perm_rng_seed/__perm_delta_k`。
-          - `__perm_stat` 支持：`fused_score`（Σ w_i * ph_evidence_i；ph_evidence 来自 PageHinkley 内部累积量）与 `delta_fused_score`（fused_score_t - median(fused_score_{t-k..t-1})）。
+          - 开关：通过 `trigger_weights` 透传 `__confirm_rule=perm_test`（字符串）。
+          - 参数（均通过 `trigger_weights` 透传 `__perm_*`，单位说明很重要）：
+            - `__perm_pre_n/__perm_post_n`：pre/post 窗口长度（单位：`sample_idx` 计数；内部会把每个 batch 的统计量按样本数展开为样本级序列）。
+            - `__perm_n_perm/__perm_alpha`：置换次数与显著性阈值。
+            - `__perm_stat`：`fused_score` / `delta_fused_score` / `vote_score`
+              - `fused_score`：Σ w_i * ph_evidence_i；ph_evidence 来自 PageHinkley 内部累积量（`max(_sum_increase,_sum_decrease)`）。
+              - `delta_fused_score`：`fused_score_t - median(fused_score_{t-k..t-1})`（`k` 由 `__perm_delta_k` 给出，不含当前 t）。
+              - `vote_score`：Σ w_i * I(detector_i_drift)（与 weighted 的票分口径一致，V15.x 用于稳定性复核）。
+            - `__perm_side`：`one_sided_pos` / `two_sided` / `abs_one_sided`（effect 口径：one_sided_pos 为 signed；其余为 abs；当前 `two_sided` 与 `abs_one_sided` 实现等价）。
+            - `__perm_min_effect`：最小 effect 门槛（与 side 的 effect 口径一致）。
+            - `__perm_rng_seed`：置换随机种子。
+      - divergence gate / adaptive cooldown（可选）：two_stage confirm 还支持在 confirm 侧额外门控与自适应冷却（均通过 `trigger_weights` 透传；见 `drift/detectors.py`）。
       - 只有 confirmed 才置 `drift_flag=1`（候选通过 `candidate_flag` 记录），并记录 `confirm_delay`（candidate→confirm 的步数）。
-  - `update(values, step)`：
+  - `update(values, step, sample_idx=None)`：
     - 通过 `SIGNAL_ALIASES` 从 `values` 中抽取对应的信号（例如 `"error_rate" → student_error_rate"`，`"divergence" → divergence_js`）；
     - 调用 river 的 `detector.update(value)`；
     - 通过 `get_drift_flag(detector)` 统一读取 `drift_detected` 标志，并按 `trigger_mode` 计算融合后的 `drift_flag`；
     - `monitor_severity`：保持原定义（只在 detector 触发时，取 `abs(value - prev_on_drift)` 的 max）；
     - `monitor_fused_severity`：新增调试口径（每步 max `abs(value - prev_all)`，与 drift_flag 无关）；
     - 额外记录：`monitor_vote_count`（本步触发的 detector 数量）、`monitor_vote_score`（weighted 时的票分；其它模式也会给出一致口径的得分）。
+    - perm_test 诊断字段：`last_perm_pvalue/last_perm_effect`、`perm_test_count_total/perm_accept_count_total/perm_reject_count_total`（并由训练循环写入日志与 `.summary.json`）。
     - 将发生漂移的 `step` 追加到 `history`，更新 `last_drift_step`。
 - 检测值应避开 `NaN` / 空批次（训练循环已做防护）。
 

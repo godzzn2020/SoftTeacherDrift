@@ -582,6 +582,44 @@ python experiments/trackH_severity_gating_insects.py \
 python scripts/summarize_next_stage.py
 ```
 
+### experiments/trackAL_perm_confirm_sweep.py
+
+- 作用：Track AL（扫参）：在固定的 two_stage 设置下 sweep `perm_test` 的 `__perm_*` 网格，对比 baseline（weighted confirm）与 perm_test confirm，并输出按 `(dataset, group)` 聚合的表（含 `run_index_json` 精确定位到每个 run）。
+- 入口：`experiments/trackAL_perm_confirm_sweep.py:main`
+- 输出：默认写到 `scripts/TRACKAL_PERM_CONFIRM_SWEEP.csv`（也可用 `--out_csv` 指定）。
+- 关键点：perm_test/perm_stat/perm_side 等均通过 `trigger_weights` 透传（见 `drift/detectors.py:DriftMonitor._resolve_perm_test_cfg` 与 `run_experiment.py:parse_trigger_weights`）。
+
+### experiments/trackAL_perm_confirm_stability_v15p3.py
+
+- 作用：V15.3 稳定性复核（tiny ablation）：固定候选组 + baseline，跨 seeds 输出 mean/std，并修复 `stagger_abrupt3` 的 GT drift anchors。
+- 入口：`experiments/trackAL_perm_confirm_stability_v15p3.py:main`
+- 输出：
+  - 聚合：`scripts/TRACKAL_PERM_CONFIRM_STABILITY_V15P3*.csv`
+  - 明细：`scripts/TRACKAL_PERM_CONFIRM_STABILITY_V15P3*_RAW.csv`
+- 注意：支持 `--num_shards/--shard_idx` 并行，必须隔离 `--out_csv/--out_raw_csv/--log_root_suffix`。
+
+### experiments/trackAM_perm_diagnostics.py
+
+- 作用：Track AM（可审计诊断）：基于 TrackAL 的 `run_index_json`，只读取对应 run 的 `.summary.json`，统计 confirmed/candidate 比例与 p-value 分布（避免扫描大日志）。
+- 入口：`experiments/trackAM_perm_diagnostics.py:main`
+- 输出：默认写到 `artifacts/v15p3/tables/TRACKAM_PERM_DIAG_V15P3.csv`（也可用 `--out_csv` 指定）。
+
+### scripts/summarize_next_stage_v15.py
+
+- 作用：V15 汇总入口：读取 TrackAL/TrackAM CSV，生成主报告/全量报告/metrics_table/run_index，并输出 Top-K hard-ok 表（列包含 `perm_side`；若 TrackAL CSV 未提供则显示 `N/A`）。
+- 入口：`scripts/summarize_next_stage_v15.py:main`
+
+### scripts/merge_csv_shards_concat.py
+
+- 作用：将 TrackAL 的分片 CSV（同 header）直接拼接合并，常用于 two GPU 或 `--num_shards>1` 的产物回收。
+- 示例：
+
+```bash
+python scripts/merge_csv_shards_concat.py \
+  --out_csv scripts/TRACKAL_PERM_CONFIRM_STABILITY_V15P3.csv \
+  --inputs scripts/TRACKAL_PERM_CONFIRM_STABILITY_V15P3_shard0.csv,scripts/TRACKAL_PERM_CONFIRM_STABILITY_V15P3_shard1.csv
+```
+
 ### experiments/phase0_offline_supervised.py
 
 - 作用：在真实数据集上离线训练 Tabular MLP 基线，并按 run_id 写入 `results/phase0_offline_supervised/{dataset}/tabular_mlp_baseline/seed{seed}/{run_id}/`。

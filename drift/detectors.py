@@ -232,6 +232,37 @@ SIGNAL_ALIASES: Dict[str, Tuple[str, ...]] = {
     "teacher_entropy": ("teacher_entropy",),
 }
 
+_CANDIDATE_SIGNAL_ALIASES: Dict[str, str] = {
+    "error": "error_rate",
+    "err": "error_rate",
+    "error_rate": "error_rate",
+    "student_error_rate": "error_rate",
+    "div": "divergence",
+    "divergence": "divergence",
+    "divergence_js": "divergence",
+    "entropy": "teacher_entropy",
+    "teacher_entropy": "teacher_entropy",
+    "ent": "teacher_entropy",
+}
+
+
+def _normalize_candidate_signals(value: Any) -> Optional[set[str]]:
+    if value is None:
+        return None
+    tokens: List[str]
+    if isinstance(value, (list, tuple, set)):
+        tokens = [str(v).strip() for v in value if str(v).strip()]
+    else:
+        tokens = [t.strip() for t in str(value).split(",") if t.strip()]
+    if not tokens:
+        return None
+    out: set[str] = set()
+    for token in tokens:
+        key = _CANDIDATE_SIGNAL_ALIASES.get(token.lower())
+        if key:
+            out.add(key)
+    return out or None
+
 
 @dataclass
 class DriftMonitor:
@@ -703,6 +734,12 @@ class DriftMonitor:
         weights = self.trigger_weights or {"error_rate": 0.5, "divergence": 0.3, "teacher_entropy": 0.2}
         threshold = float(self.trigger_threshold) if self.trigger_threshold is not None else 0.5
         confirm_window = max(1, int(self.confirm_window))
+        candidate_filter = None
+        if isinstance(self.trigger_weights, dict):
+            candidate_filter = _normalize_candidate_signals(
+                self.trigger_weights.get("__candidate_signals")
+                or self.trigger_weights.get("candidate_signals")
+            )
 
         # --- perm_test: continuous stat ---
         # fused_score（perm_test 使用的连续统计量）：Σ_i w_i * ph_evidence_i
@@ -759,8 +796,12 @@ class DriftMonitor:
             if drifted:
                 if str(name) == "divergence":
                     divergence_drifted = True
-                vote_count += 1
-                vote_score += float(weights.get(name, 1.0))
+                use_for_candidate = True
+                if candidate_filter is not None:
+                    use_for_candidate = str(name) in candidate_filter
+                if use_for_candidate:
+                    vote_count += 1
+                    vote_score += float(weights.get(name, 1.0))
                 delta_on_drift = abs(value - self._prev_values_on_drift.get(name, value))
                 monitor_severity = max(monitor_severity, delta_on_drift)
                 self._prev_values_on_drift[name] = value

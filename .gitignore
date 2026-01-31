@@ -2,3 +2,6 @@
 *.parquet
 data/synthetic
 datasets
+*.csv
+*.log
+*.json

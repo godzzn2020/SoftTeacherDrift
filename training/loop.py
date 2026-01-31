@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import math
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
 import json
@@ -26,6 +27,9 @@ from scheduler.hparam_scheduler import (
     update_hparams,
     update_hparams_with_severity,
 )
+from scheduler.ema_adapt import EmaDecayConfig, EmaDecayScheduler
+from scheduler.loss_adapt import LossAdaptiveConfig, LossAdaptiveScheduler
+from scheduler.step_hook import StepScheduler
 from soft_drift.severity import SeverityCalibrator
 
 
@@ -41,6 +45,7 @@ class TrainingConfig:
     model_variant: str = "ts_drift_adapt"
     seed: int = 0
     monitor_preset: str = "none"
+    signal_set: Optional[str] = None
     trigger_mode: str = "or"
     trigger_k: int = 2
     trigger_threshold: float = 0.5
@@ -59,6 +64,47 @@ class TrainingConfig:
     severity_norm_high: float = 2.0
     severity_scheduler_scale: float = 1.0
     severity_scheduler_config: Optional[SeveritySchedulerConfig] = None
+    ema_decay_mode: str = "none"
+    ema_gamma_min: float = 0.95
+    ema_gamma_max: float = 0.999
+    ema_gamma_fixed: Optional[float] = None
+    ema_severity_mode: str = "max"
+    ema_severity_weights: Optional[Tuple[float, float, float]] = None
+    ema_severity_smoothing: float = 0.9
+    ema_severity_threshold: float = 0.6
+    ema_severity_threshold_off: Optional[float] = None
+    ema_cooldown_steps: int = 200
+    ema_use_candidate: bool = False
+    ema_use_drift_flag: bool = False
+    loss_scheduler_mode: str = "none"
+    loss_lambda_min: Optional[float] = None
+    loss_lambda_max: Optional[float] = None
+    loss_tau_min: Optional[float] = None
+    loss_tau_max: Optional[float] = None
+    loss_lambda_fixed: Optional[float] = None
+    loss_tau_fixed: Optional[float] = None
+    loss_severity_mode: str = "max"
+    loss_severity_weights: Optional[Tuple[float, float, float]] = None
+    loss_severity_momentum: float = 0.99
+    loss_severity_smoothing: float = 0.9
+    loss_severity_low: float = 0.0
+    loss_severity_high: float = 2.0
+    loss_severity_eps: float = 1e-6
+    loss_severity_use_error: bool = False
+    loss_event_on: float = 0.6
+    loss_event_off: float = 0.4
+    loss_cooldown_steps: int = 200
+    loss_use_candidate: bool = False
+    loss_use_drift_flag: bool = False
+    loss_apply_lambda: bool = True
+    loss_apply_tau: bool = True
+    loss_safety_enabled: bool = False
+    loss_safety_use_candidate: bool = True
+    loss_safety_use_severity: bool = False
+    loss_safety_severity_threshold: float = 0.6
+    loss_safety_cooldown_steps: int = 200
+    loss_safety_tau: Optional[float] = None
+    loss_safety_lambda: Optional[float] = None
 
 
 class FeatureVectorizer:
@@ -239,6 +285,95 @@ def run_training_loop(
             severity_high=config.severity_norm_high,
             entropy_mode=config.entropy_mode,
         )
+    ema_decay_mode = str(getattr(config, "ema_decay_mode", "none") or "none").strip().lower()
+    if ema_decay_mode not in {"none", "fixed", "severity_continuous", "severity_event", "severity_event_reverse"}:
+        ema_decay_mode = "none"
+    ema_gamma_min = float(getattr(config, "ema_gamma_min", 0.95) or 0.95)
+    ema_gamma_max = float(getattr(config, "ema_gamma_max", 0.999) or 0.999)
+    ema_gamma_fixed = getattr(config, "ema_gamma_fixed", None)
+    def _clamp_alpha(value: float) -> float:
+        if math.isnan(value):
+            return 0.0
+        return min(0.999999, max(0.0, float(value)))
+    ema_gamma_min = _clamp_alpha(ema_gamma_min)
+    ema_gamma_max = _clamp_alpha(ema_gamma_max)
+    if ema_gamma_min > ema_gamma_max:
+        ema_gamma_min, ema_gamma_max = ema_gamma_max, ema_gamma_min
+    if ema_gamma_fixed is None and ema_decay_mode == "fixed":
+        ema_gamma_fixed = float(ema_gamma_max)
+    ema_severity_mode = str(getattr(config, "ema_severity_mode", "max") or "max").strip().lower()
+    ema_severity_weights = getattr(config, "ema_severity_weights", None)
+    if ema_severity_weights is None:
+        ema_severity_weights = (0.0, 0.5, 0.5)
+    ema_severity_smoothing = float(getattr(config, "ema_severity_smoothing", 0.9) or 0.9)
+    if not (0.0 <= ema_severity_smoothing <= 1.0):
+        ema_severity_smoothing = min(1.0, max(0.0, ema_severity_smoothing))
+    ema_severity_threshold = float(getattr(config, "ema_severity_threshold", 0.6) or 0.6)
+    ema_severity_threshold_off = getattr(config, "ema_severity_threshold_off", None)
+    ema_cooldown_steps = max(0, int(getattr(config, "ema_cooldown_steps", 200) or 0))
+    ema_use_candidate = bool(getattr(config, "ema_use_candidate", False))
+    ema_use_drift_flag = bool(getattr(config, "ema_use_drift_flag", False))
+    ema_cfg = EmaDecayConfig(
+        mode=str(ema_decay_mode),
+        gamma_min=float(ema_gamma_min),
+        gamma_max=float(ema_gamma_max),
+        gamma_fixed=float(ema_gamma_fixed) if ema_gamma_fixed is not None else None,
+        severity_mode=str(ema_severity_mode),
+        severity_weights=tuple(float(x) for x in ema_severity_weights),
+        severity_smoothing=float(ema_severity_smoothing),
+        severity_threshold=float(ema_severity_threshold),
+        severity_threshold_off=float(ema_severity_threshold_off) if ema_severity_threshold_off is not None else None,
+        cooldown_steps=int(ema_cooldown_steps),
+        use_candidate=bool(ema_use_candidate),
+        use_drift_flag=bool(ema_use_drift_flag),
+        ema_momentum=float(config.severity_ema_momentum),
+        eps=float(config.severity_eps),
+        severity_low=float(config.severity_norm_low),
+        severity_high=float(config.severity_norm_high),
+        entropy_mode=str(config.entropy_mode),
+    )
+    ema_scheduler = EmaDecayScheduler(ema_cfg, default_decay=float(initial_hparams.alpha))
+
+    loss_scheduler_mode = str(getattr(config, "loss_scheduler_mode", "none") or "none").strip().lower()
+    loss_severity_mode = str(getattr(config, "loss_severity_mode", "max") or "max").strip().lower()
+    loss_severity_weights = getattr(config, "loss_severity_weights", None)
+    if loss_severity_weights is None:
+        loss_severity_weights = (0.0, 0.5, 0.5)
+    loss_cfg = LossAdaptiveConfig(
+        mode=str(loss_scheduler_mode),
+        lambda_min=getattr(config, "loss_lambda_min", None),
+        lambda_max=getattr(config, "loss_lambda_max", None),
+        tau_min=getattr(config, "loss_tau_min", None),
+        tau_max=getattr(config, "loss_tau_max", None),
+        lambda_fixed=getattr(config, "loss_lambda_fixed", None),
+        tau_fixed=getattr(config, "loss_tau_fixed", None),
+        severity_mode=str(loss_severity_mode),
+        severity_weights=tuple(float(x) for x in loss_severity_weights),
+        severity_momentum=float(getattr(config, "loss_severity_momentum", 0.99) or 0.99),
+        severity_smoothing=float(getattr(config, "loss_severity_smoothing", 0.9) or 0.9),
+        severity_low=float(getattr(config, "loss_severity_low", 0.0) or 0.0),
+        severity_high=float(getattr(config, "loss_severity_high", 2.0) or 2.0),
+        severity_eps=float(getattr(config, "loss_severity_eps", 1e-6) or 1e-6),
+        severity_use_error=bool(getattr(config, "loss_severity_use_error", False)),
+        event_threshold_on=float(getattr(config, "loss_event_on", 0.6) or 0.6),
+        event_threshold_off=float(getattr(config, "loss_event_off", 0.4) or 0.4),
+        cooldown_steps=int(getattr(config, "loss_cooldown_steps", 200) or 0),
+        use_candidate=bool(getattr(config, "loss_use_candidate", False)),
+        use_drift_flag=bool(getattr(config, "loss_use_drift_flag", False)),
+        adapt_lambda=bool(getattr(config, "loss_apply_lambda", True)),
+        adapt_tau=bool(getattr(config, "loss_apply_tau", True)),
+        base_lambda=float(initial_hparams.lambda_u),
+        base_tau=float(initial_hparams.tau),
+        safety_enabled=bool(getattr(config, "loss_safety_enabled", False)),
+        safety_use_candidate=bool(getattr(config, "loss_safety_use_candidate", True)),
+        safety_use_severity=bool(getattr(config, "loss_safety_use_severity", False)),
+        safety_severity_threshold=float(getattr(config, "loss_safety_severity_threshold", 0.6) or 0.6),
+        safety_cooldown_steps=int(getattr(config, "loss_safety_cooldown_steps", 200) or 0),
+        safety_tau=getattr(config, "loss_safety_tau", None),
+        safety_lambda=getattr(config, "loss_safety_lambda", None),
+    )
+    loss_scheduler = LossAdaptiveScheduler(loss_cfg)
+    step_scheduler = StepScheduler(ema_scheduler, loss_scheduler)
     for step, batch in enumerate(batch_iter, start=1):
         if step > config.n_steps:
             break
@@ -270,10 +405,18 @@ def run_training_loop(
         )
         losses.total.backward()
         optimizer.step()
-        model.update_teacher(current_hparams.alpha)
 
         stats = _collect_statistics(losses, y_labeled_np, y_unlabeled_np)
         signals = stats["signals"]
+        pl_accept_rate, pl_precision, pl_accept_count, pl_total = _compute_pseudo_label_metrics(
+            stats.get("teacher_probs"),
+            y_unlabeled_np,
+            current_hparams.tau,
+        )
+        unsup_weighted = float(current_hparams.lambda_u * losses.unsupervised.detach().cpu().item())
+        sup_loss_val = float(losses.supervised.detach().cpu().item())
+        loss_total_val = sup_loss_val + unsup_weighted
+        unsup_ratio = float(unsup_weighted / loss_total_val) if loss_total_val > 0 else float("nan")
         drift_flag, monitor_severity = drift_monitor.update(signals, step, sample_idx=int(sample_idx))
         monitor_vote_count = getattr(drift_monitor, "last_vote_count", None)
         monitor_vote_score = getattr(drift_monitor, "last_vote_score", None)
@@ -350,6 +493,14 @@ def run_training_loop(
             current_hparams, regime = update_hparams(
                 scheduler_state, current_hparams, drift_flag, monitor_severity
             )
+        scheduler_out = step_scheduler.step(
+            signals,
+            drift_flag=drift_flag,
+            candidate_flag=candidate_flag,
+        )
+        if scheduler_out.overrides:
+            current_hparams = replace(current_hparams, **scheduler_out.overrides)
+        model.update_teacher(current_hparams.alpha)
         _set_optimizer_lr(optimizer, current_hparams.lr)
 
         acc_value, kappa_value = _update_metrics(
@@ -365,8 +516,7 @@ def run_training_loop(
             candidate_sample_idxs.append(int(sample_idx))
         if drift_flag:
             confirmed_sample_idxs.append(int(sample_idx))
-        logs.append(
-            {
+        log_entry = {
                 "step": step,
                 "seen_samples": seen_samples,
                 "sample_idx": sample_idx,
@@ -376,6 +526,7 @@ def run_training_loop(
                 "seed": config.seed,
                 "monitor_preset": config.monitor_preset,
                 "monitor_preset_base": monitor_preset_base,
+                "signal_set": config.signal_set,
                 "monitor_ph_params": monitor_ph_params_json,
                 "monitor_ph_overrides": monitor_ph_overrides_json,
                 "ph_error_threshold": ph_error_threshold,
@@ -438,6 +589,20 @@ def run_training_loop(
                 "entropy_mode": config.entropy_mode,
                 "decay": float(config.severity_decay),
                 "freeze_baseline_steps": int(config.freeze_baseline_steps),
+                "ema_decay_mode": ema_decay_mode,
+                "ema_gamma_min": float(ema_gamma_min),
+                "ema_gamma_max": float(ema_gamma_max),
+                "ema_gamma_fixed": float(ema_gamma_fixed) if ema_gamma_fixed is not None else float("nan"),
+                "ema_severity_mode": str(ema_severity_mode),
+                "ema_severity_weights": ",".join(
+                    f"{w:.6g}" for w in (ema_severity_weights or (0.0, 0.0, 0.0))
+                ),
+                "ema_severity_smoothing": float(ema_severity_smoothing),
+                "ema_severity_threshold": float(ema_severity_threshold),
+                "ema_severity_threshold_off": float(ema_severity_threshold_off) if ema_severity_threshold_off is not None else float("nan"),
+                "ema_cooldown_steps": int(ema_cooldown_steps),
+                "ema_use_candidate": int(bool(ema_use_candidate)),
+                "ema_use_drift_flag": int(bool(ema_use_drift_flag)),
                 "regime": regime,
                 "alpha": current_hparams.alpha,
                 "lr": current_hparams.lr,
@@ -446,8 +611,15 @@ def run_training_loop(
                 "timestamp": time.time(),
                 "supervised_loss": float(losses.supervised.detach().cpu().item()),
                 "unsupervised_loss": float(losses.unsupervised.detach().cpu().item()),
+                "unsupervised_loss_weighted": float(unsup_weighted),
+                "unsupervised_loss_ratio": float(unsup_ratio),
+                "pl_accept_rate": float(pl_accept_rate),
+                "pl_precision": float(pl_precision),
+                "pl_accept_count": int(pl_accept_count),
+                "pl_total": int(pl_total),
             }
-        )
+        log_entry.update(scheduler_out.logs)
+        logs.append(log_entry)
     df = pd.DataFrame(logs)
     if config.log_path:
         log_dir = os.path.dirname(config.log_path)
@@ -493,6 +665,7 @@ def run_training_loop(
                 "seed": int(config.seed),
                 "monitor_preset": config.monitor_preset,
                 "monitor_preset_base": monitor_preset_base,
+                "signal_set": config.signal_set,
                 "monitor_ph_params": monitor_ph_params,
                 "monitor_ph_overrides": monitor_ph_overrides,
                 "trigger_mode": config.trigger_mode,
@@ -514,6 +687,20 @@ def run_training_loop(
                 "entropy_mode": str(config.entropy_mode),
                 "severity_decay": float(config.severity_decay),
                 "freeze_baseline_steps": int(config.freeze_baseline_steps),
+                "ema_decay_mode": ema_decay_mode,
+                "ema_gamma_min": float(ema_gamma_min),
+                "ema_gamma_max": float(ema_gamma_max),
+                "ema_gamma_fixed": float(ema_gamma_fixed) if ema_gamma_fixed is not None else float("nan"),
+                "ema_severity_mode": str(ema_severity_mode),
+                "ema_severity_weights": ",".join(
+                    f"{w:.6g}" for w in (ema_severity_weights or (0.0, 0.0, 0.0))
+                ),
+                "ema_severity_smoothing": float(ema_severity_smoothing),
+                "ema_severity_threshold": float(ema_severity_threshold),
+                "ema_severity_threshold_off": float(ema_severity_threshold_off) if ema_severity_threshold_off is not None else float("nan"),
+                "ema_cooldown_steps": int(ema_cooldown_steps),
+                "ema_use_candidate": int(bool(ema_use_candidate)),
+                "ema_use_drift_flag": int(bool(ema_use_drift_flag)),
                 "n_steps": int(config.n_steps),
                 "horizon": horizon,
                 "acc_final": acc_final,
@@ -540,6 +727,41 @@ def run_training_loop(
                 "perm_effect_p90": float(perm_effect_p90),
                 "perm_effect_p99": float(perm_effect_p99),
             }
+            if "ema_decay" in df.columns:
+                ema_vals = df["ema_decay"].astype(float).to_numpy()
+                if ema_vals.size > 0:
+                    payload["ema_decay_mean"] = float(np.mean(ema_vals))
+                    payload["ema_decay_p10"] = float(np.quantile(ema_vals, 0.10))
+                    payload["ema_decay_p50"] = float(np.quantile(ema_vals, 0.50))
+                    payload["ema_decay_p90"] = float(np.quantile(ema_vals, 0.90))
+            if "ema_severity_ema" in df.columns:
+                sev_vals = df["ema_severity_ema"].astype(float).to_numpy()
+                if sev_vals.size > 0:
+                    payload["ema_severity_mean"] = float(np.mean(sev_vals))
+            if "lambda_u" in df.columns:
+                lambda_vals = df["lambda_u"].astype(float).to_numpy()
+                if lambda_vals.size > 0:
+                    payload["lambda_u_mean"] = float(np.mean(lambda_vals))
+                    payload["lambda_u_p50"] = float(np.quantile(lambda_vals, 0.50))
+                    payload["lambda_u_p90"] = float(np.quantile(lambda_vals, 0.90))
+                    payload["lambda_u_p99"] = float(np.quantile(lambda_vals, 0.99))
+            if "tau" in df.columns:
+                tau_vals = df["tau"].astype(float).to_numpy()
+                if tau_vals.size > 0:
+                    payload["tau_mean"] = float(np.mean(tau_vals))
+                    payload["tau_p50"] = float(np.quantile(tau_vals, 0.50))
+                    payload["tau_p90"] = float(np.quantile(tau_vals, 0.90))
+                    payload["tau_p99"] = float(np.quantile(tau_vals, 0.99))
+            if "pl_accept_rate" in df.columns:
+                accept_vals = df["pl_accept_rate"].astype(float).to_numpy()
+                finite = accept_vals[np.isfinite(accept_vals)]
+                if finite.size > 0:
+                    payload["pl_accept_rate_mean"] = float(np.mean(finite))
+            if "pl_precision" in df.columns:
+                prec_vals = df["pl_precision"].astype(float).to_numpy()
+                finite = prec_vals[np.isfinite(prec_vals)]
+                if finite.size > 0:
+                    payload["pl_precision_mean"] = float(np.mean(finite))
             summary_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
         except Exception:
             # summary 写失败不应影响主流程
@@ -583,6 +805,7 @@ def _collect_statistics(
     )
     return {
         "signals": signals,
+        "teacher_probs": teacher_probs,
         "student_probs_labeled": student_probs_labeled,
         "student_probs_unlabeled": student_probs_unlabeled,
     }
@@ -608,6 +831,28 @@ def _update_metrics(
             metric.update(y_true=y_true, y_pred=y_pred)
             kappa_metric.update(y_true=y_true, y_pred=y_pred)
     return metric.get(), kappa_metric.get()
+
+
+def _compute_pseudo_label_metrics(
+    teacher_probs: Optional[np.ndarray],
+    y_unlabeled: Optional[np.ndarray],
+    tau: float,
+) -> Tuple[float, float, int, int]:
+    """Compute pseudo-label accept rate and precision (for logging only)."""
+    if teacher_probs is None or y_unlabeled is None or len(y_unlabeled) == 0:
+        return float("nan"), float("nan"), 0, 0
+    max_probs = teacher_probs.max(axis=1)
+    pseudo_labels = teacher_probs.argmax(axis=1)
+    if max_probs.size == 0:
+        return float("nan"), float("nan"), 0, 0
+    mask = max_probs >= float(tau)
+    accept_count = int(mask.sum())
+    total = int(max_probs.size)
+    accept_rate = float(accept_count) / float(total) if total > 0 else float("nan")
+    if accept_count <= 0:
+        return accept_rate, float("nan"), accept_count, total
+    precision = float(np.mean(pseudo_labels[mask] == y_unlabeled[mask]))
+    return accept_rate, precision, accept_count, total
 
 
 def _set_optimizer_lr(optimizer: torch.optim.Optimizer, lr: float) -> None:

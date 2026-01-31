@@ -58,6 +58,13 @@ STAGGER_DEFAULT = {
     }
 }
 
+COVSHIFT_LINEAR_DEFAULTS = {
+    "n_features": 8,
+    "segment_length": 10000,
+    "w": [1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    "b": 0.0,
+}
+
 DEFAULT_ABRUPT_SYNTH_DATASETS = {
     "sea_abrupt4": {
         "dataset_type": "sea",
@@ -119,6 +126,8 @@ def build_stream(
         return _build_sine_stream(dataset_name, seed=seed, **kwargs)
     if dataset_type == "stagger":
         return _build_stagger_stream(dataset_name, seed=seed, **kwargs)
+    if dataset_type == "covshift_linear":
+        return _build_covshift_linear_stream(dataset_name, seed=seed, **kwargs)
     if dataset_type == "uspds_csv":
         if csv_path is None:
             raise ValueError("uspds_csv 数据集需要提供 csv_path")
@@ -268,6 +277,80 @@ def _build_stagger_stream(dataset_name: str, seed: int, **kwargs: Any) -> Stream
         n_features=len(feature_names),
         n_classes=2,
         dataset_type="stagger",
+        dataset_name=dataset_name,
+        feature_names=feature_names,
+        classes=[0, 1],
+    )
+
+
+def _covshift_linear_segments(dataset_name: str, d: int) -> List[Dict[str, np.ndarray]]:
+    if d < 2:
+        raise ValueError("covshift_linear 需要至少 2 维特征")
+    if dataset_name == "covshift_mean3":
+        mu0 = np.zeros(d, dtype=float)
+        mu1 = np.zeros(d, dtype=float)
+        mu1[0] = 1.5
+        mu2 = np.zeros(d, dtype=float)
+        mu2[0] = -1.5
+        cov = np.eye(d, dtype=float)
+        return [
+            {"mu": mu0, "cov": cov},
+            {"mu": mu1, "cov": cov},
+            {"mu": mu2, "cov": cov},
+        ]
+    if dataset_name == "covshift_scale3":
+        mu = np.zeros(d, dtype=float)
+        cov0 = np.eye(d, dtype=float)
+        cov1 = np.eye(d, dtype=float)
+        cov1[0, 0] = 4.0
+        cov2 = np.eye(d, dtype=float)
+        cov2[0, 0] = 0.25
+        return [
+            {"mu": mu, "cov": cov0},
+            {"mu": mu, "cov": cov1},
+            {"mu": mu, "cov": cov2},
+        ]
+    if dataset_name == "covshift_corr3":
+        mu = np.zeros(d, dtype=float)
+        cov0 = np.eye(d, dtype=float)
+        cov1 = np.eye(d, dtype=float)
+        cov1[0, 1] = 0.8
+        cov1[1, 0] = 0.8
+        cov2 = np.eye(d, dtype=float)
+        cov2[0, 1] = -0.8
+        cov2[1, 0] = -0.8
+        return [
+            {"mu": mu, "cov": cov0},
+            {"mu": mu, "cov": cov1},
+            {"mu": mu, "cov": cov2},
+        ]
+    raise ValueError(f"未知的 covshift_linear 配置: {dataset_name}")
+
+
+def _build_covshift_linear_stream(dataset_name: str, seed: int, **kwargs: Any) -> StreamInfo:
+    d = int(kwargs.get("n_features", COVSHIFT_LINEAR_DEFAULTS["n_features"]))
+    seg_len = int(kwargs.get("segment_length", COVSHIFT_LINEAR_DEFAULTS["segment_length"]))
+    w = np.asarray(kwargs.get("w", COVSHIFT_LINEAR_DEFAULTS["w"]), dtype=float)
+    b = float(kwargs.get("b", COVSHIFT_LINEAR_DEFAULTS["b"]))
+    if w.shape[0] != d:
+        raise ValueError(f"covshift_linear w 维度不匹配: w={w.shape[0]} d={d}")
+    segments = _covshift_linear_segments(dataset_name, d)
+    rng = np.random.default_rng(seed)
+
+    def iterator() -> Iterator[Tuple[Dict[str, float], int]]:
+        for seg in segments:
+            xs = rng.multivariate_normal(mean=seg["mu"], cov=seg["cov"], size=seg_len)
+            logits = xs @ w + b
+            ys = (logits > 0).astype(np.int64)
+            for x, y in zip(xs, ys):
+                yield {f"f{i}": float(x[i]) for i in range(d)}, int(y)
+
+    feature_names = [f"f{i}" for i in range(d)]
+    return StreamInfo(
+        iterator_fn=iterator,
+        n_features=d,
+        n_classes=2,
+        dataset_type="covshift_linear",
         dataset_name=dataset_name,
         feature_names=feature_names,
         classes=[0, 1],
@@ -704,14 +787,62 @@ def generate_default_abrupt_synth_datasets(
             )
 
 
+def _quickcheck_covshift(seed: int, n_per_seg: int, datasets: Sequence[str]) -> None:
+    print(f"[covshift_quickcheck] seed={seed} n_per_seg={n_per_seg}")
+    for idx, name in enumerate(datasets):
+        dataset_seed = int(seed + idx * 9973)
+        rng = np.random.default_rng(dataset_seed)
+        d = int(COVSHIFT_LINEAR_DEFAULTS["n_features"])
+        w = np.asarray(COVSHIFT_LINEAR_DEFAULTS["w"], dtype=float)
+        b = float(COVSHIFT_LINEAR_DEFAULTS["b"])
+        segments = _covshift_linear_segments(name, d)
+        print(f"[dataset] {name} seed={dataset_seed}")
+        for seg_idx, seg in enumerate(segments):
+            xs = rng.multivariate_normal(mean=seg["mu"], cov=seg["cov"], size=n_per_seg)
+            logits = xs @ w + b
+            ys = (logits > 0).astype(np.int64)
+            f0 = xs[:, 0]
+            f1 = xs[:, 1]
+            corr = float(np.corrcoef(f0, f1)[0, 1])
+            print(
+                "  seg{idx}: f0_mean={mean:.3f} f0_var={var:.3f} "
+                "corr_f0f1={corr:.3f} label_rate={rate:.3f}".format(
+                    idx=seg_idx,
+                    mean=float(f0.mean()),
+                    var=float(f0.var()),
+                    corr=corr,
+                    rate=float(ys.mean()),
+                )
+            )
+
+
 def _cli() -> None:
     parser = argparse.ArgumentParser(description="data.streams 工具 CLI")
-    parser.add_argument("--cmd", choices=["generate_default_abrupt"], required=True)
+    parser.add_argument(
+        "--cmd",
+        choices=["generate_default_abrupt", "covshift_quickcheck"],
+        required=True,
+    )
     parser.add_argument("--seeds", nargs="*", type=int, default=[1], help="生成使用的随机种子列表")
     parser.add_argument("--out_root", default="data/synthetic")
+    parser.add_argument("--seed", type=int, default=42, help="quickcheck 使用的随机种子")
+    parser.add_argument("--n_per_seg", type=int, default=1000, help="每段采样数（quickcheck）")
+    parser.add_argument(
+        "--datasets",
+        type=str,
+        default="covshift_mean3,covshift_scale3,covshift_corr3",
+        help="quickcheck 数据集列表（逗号分隔）",
+    )
     args = parser.parse_args()
     if args.cmd == "generate_default_abrupt":
         generate_default_abrupt_synth_datasets(seeds=args.seeds, out_root=args.out_root)
+        return
+    if args.cmd == "covshift_quickcheck":
+        datasets = [d.strip() for d in str(args.datasets).split(",") if d.strip()]
+        if not datasets:
+            raise ValueError("--datasets 不能为空")
+        _quickcheck_covshift(int(args.seed), int(args.n_per_seg), datasets)
+        return
 
 
 if __name__ == "__main__":
